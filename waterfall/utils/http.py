@@ -28,9 +28,9 @@ def get(url, res_type='text', *, headers={}, params={}):
     r = requests.get(url, headers=headers, params=params, timeout=10)
     r.raise_for_status()
     r.encoding = r.apparent_encoding
-    if "text" == res_type:
+    if 'text' == res_type:
         return r.text
-    if "json" == res_type:
+    if 'json' == res_type:
         return r.json()
     return r.raw
 
@@ -40,7 +40,7 @@ def post(url, res_type='text', *, data="", files={}):
     r = requests.post(url, data=data, files=files, timeout=10)
     r.raise_for_status()
     r.encoding = r.apparent_encoding
-    if "text" == res_type:
+    if 'text' == res_type:
         return r.text
-    if "json" == res_type:
+    if 'json' == res_type:
         return r.json()
