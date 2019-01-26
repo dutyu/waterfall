@@ -76,7 +76,7 @@ def io(fn):
                 fn.__globals__.get('__name__') + '.' + fn.__name__ + '()' +
                 ' input params: %s ||| output params: %s',
                 json.dumps(tuple(filter(_filter, args)))
-                + "|" + json.dumps(tuple(filter(_filter, kwargs.items()))),
+                + '|' + json.dumps(tuple(filter(_filter, kwargs.items()))),
                 json.dumps(res if _filter(res) else None))
         except Exception as e:
             Logger().error_logger.exception(e)
