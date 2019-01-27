@@ -40,7 +40,7 @@ class Job(object):
 
 class Scheduler(threading.Thread):
     def __init__(self, step, input_queue, res_queue, monitor_queue, err_flag):
-        validate(step, BoringStep)
+        validate(step, Step)
         super(Scheduler, self).__init__()
         self._step = step
         self._input_queue = input_queue
@@ -84,7 +84,7 @@ class Scheduler(threading.Thread):
         return pool
 
 
-class BoringStep(object):
+class Step(object):
     class Runnable(object):
         @abstractmethod
         def run(self, params, res_queue, monitor_queue, err_flag):
@@ -93,7 +93,7 @@ class BoringStep(object):
     def __init__(self, parallelism, pool_type, runner):
         validate(parallelism, int)
         validate(pool_type, str)
-        validate(runner, BoringStep.Runnable)
+        validate(runner, Step.Runnable)
         self._parallelism = parallelism
         self._pool_type = pool_type
         self._next_step = None
@@ -102,7 +102,7 @@ class BoringStep(object):
         self._init_func = None
 
     def set_next_step(self, next_step):
-        validate(next_step, BoringStep)
+        validate(next_step, Step)
 
         def _alert():
             raise RuntimeError('next_step has been destroyed !')
@@ -142,15 +142,15 @@ class BoringStep(object):
         return self._init_func
 
 
-class FirstStep(BoringStep):
+class FirstStep(Step):
     def __init__(self, parallelism, pool_type, runner):
-        BoringStep.__init__(self, parallelism, pool_type, runner)
+        Step.__init__(self, parallelism, pool_type, runner)
 
 
 class JobMonitor(threading.Thread):
     def __init__(self, config=Config()):
-        threading.Thread.__init__(self)
         validate(config, Config)
+        threading.Thread.__init__(self)
         self._config = config
         self._job = None
         self._err_flag = None
@@ -189,7 +189,7 @@ class JobsContainer(object):
     def get_state(self):
         return self._state
 
-    def append_job(self, job):
+    def add_job(self, job):
         validate(job, Job)
         self._job_list.append(job)
         return self
