@@ -94,8 +94,8 @@ def monitor(fn):
         Logger().monitor_logger.info(
             fn.__globals__.get('__name__') + '.' +
             fn.__name__ + '()' + '-' +
-            's' if flag else 'f' + '-' +
-                             'costs ' + str(cost) + ' ms')
+            ('s' if flag else 'f') + '-' +
+            'costs ' + str(cost) + ' ms')
 
     @functools.wraps(fn)
     def _wrapper(*args, **kwargs):

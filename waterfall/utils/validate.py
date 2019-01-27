@@ -13,7 +13,7 @@ __all__ = ["validate", ]
 
 
 def validate(param, *types):
-    if not isinstance(param, tuple(types)):
+    if not isinstance(param, types):
         raise RuntimeError(
             'param\'s type should be in {:s} !'.format(
                 json.dumps(list(map(lambda _type: str(type(_type)), types)))))
