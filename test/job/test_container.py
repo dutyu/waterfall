@@ -17,6 +17,7 @@ class TestRunner(BoringStep.Runnable):
             if res_queue:
                 for i in range(10):
                     res_queue.put(random.random())
+                    monitor_queue.put(random.random())
         except Exception as e:
             Logger().error_logger.exception(e)
             err_flag.value = True

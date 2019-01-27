@@ -12,6 +12,7 @@ import weakref
 from abc import abstractmethod
 from multiprocessing import Manager
 from multiprocessing.pool import Pool, ThreadPool
+from types import FunctionType
 
 from waterfall.config.config import Config
 from waterfall.logger import Logger, monitor
@@ -58,8 +59,9 @@ class Scheduler(threading.Thread):
                 self._schedule(pool)
                 pool.close()
                 pool.join()
-                if self._step.get_next_step():
-                    self._step.get_next_step().almost_done()
+                nest_step = self._step.get_next_step()
+                if nest_step:
+                    nest_step.almost_done()
                 return
             else:
                 self._schedule(pool)
@@ -76,7 +78,7 @@ class Scheduler(threading.Thread):
     def _get_pool(self):
         parallelism = self._step.get_parallelism()
         pool_type = self._step.get_pool_type()
-        pool = Pool(parallelism, self._step.process_init) \
+        pool = Pool(parallelism, self._step.get_init_func()) \
             if pool_type == 'process' \
             else ThreadPool(parallelism)
         return pool
@@ -97,6 +99,7 @@ class BoringStep(object):
         self._next_step = None
         self._runner = runner
         self._almost_done = False
+        self._init_func = None
 
     def set_next_step(self, next_step):
         validate(next_step, BoringStep)
@@ -130,9 +133,13 @@ class BoringStep(object):
     def get_almost_done(self):
         return self._almost_done
 
-    def process_init(self):
+    def set_init_func(self, func):
+        validate(func, FunctionType)
+        self._init_func = func
+
+    def get_init_func(self):
         """使用进程池的时候,如果需要初始化,才调用"""
-        pass
+        return self._init_func
 
 
 class FirstStep(BoringStep):
@@ -156,17 +163,18 @@ class JobMonitor(threading.Thread):
         self._queue = monitor_queue
 
     def run(self):
-        while True:
-            try:
+        try:
+            while True:
                 if self._err_flag.value:
                     return
                 while not self._queue.empty():
                     msg = self._queue.get()
+                    Logger().progress_logger.info('msg: {%s}', str(msg))
                     self._queue.task_done()
                     # TODO
                     # do_something()
-            except:
-                pass
+        except:
+            pass
 
 
 @singleton
