@@ -59,9 +59,9 @@ class Scheduler(threading.Thread):
                 self._schedule(pool)
                 pool.close()
                 pool.join()
-                nest_step = self._step.get_next_step()
-                if nest_step:
-                    nest_step.almost_done()
+                next_step = self._step.get_next_step()
+                if next_step:
+                    next_step.almost_done()
                 return
             else:
                 self._schedule(pool)
