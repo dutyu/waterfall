@@ -1,4 +1,5 @@
 import random
+import threading
 import time
 
 from multiprocessing import Manager
@@ -9,18 +10,14 @@ from waterfall.logger import Logger
 
 
 class TestRunner(Step.Runnable):
-    def run(self, params, res_queue, monitor_queue, err_flag):
+    def _run(self, params, err_flag):
         try:
             print("params : " + str(params))
-            time.sleep(0.1)
+            time.sleep(1)
             print("run finish !")
-            if res_queue:
-                for i in range(10):
-                    res_queue.put(random.random())
-                    monitor_queue.put(random.random())
+            return (i for i in range(0, 10))
         except Exception as e:
             Logger().error_logger.exception(e)
-            err_flag.value = True
 
 
 class TestJob(Job):
@@ -31,12 +28,17 @@ class TestJob(Job):
         return queue
 
 
+def _test():
+    raise RuntimeError('test')
+
+
 if __name__ == "__main__":
     container = JobsContainer(Config().merge_from_dict({"test": 1, "test2": 2}))
     runner1 = TestRunner()
-    first_step = FirstStep(10, 'process', runner1)
-    second_step = Step(2, 'thread', runner1)
+    first_step = FirstStep(runner1, 'process', 2, 10)
+    second_step = Step(runner1, 'thread', 5, 5)
     first_step.set_next_step(second_step)
     test_job = TestJob(Config().merge_from_dict({"test2": 2, "test3": 3}), first_step)
     container.add_job(test_job)
     container.set_ready().start()
+    threading.Thread
