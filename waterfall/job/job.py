@@ -200,7 +200,7 @@ class Step(object):
                         try:
                             cnt = 0
                             for item in res:
-                                if res is not None:
+                                if item is not None:
                                     res_queue.put(item)
                                     cnt += 1
                             self._notice_produce(
