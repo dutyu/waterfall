@@ -7,7 +7,6 @@ Author: dutyu
 Date: 2019/01/26 22:12:42
 Brief: job
 """
-import json
 import threading
 import time
 import weakref
@@ -42,20 +41,20 @@ class Job(object):
 
 
 class Scheduler(threading.Thread):
-    def __init__(self, step, input_queue, res_queue, monitor_queue, err_flag):
+    def __init__(self, step, input_queue, res_queue, monitor_queue, exit_flag):
         validate(step, Step)
         threading.Thread.__init__(self)
         self._step = step
         self._input_queue = input_queue
         self._res_queue = res_queue
         self._monitor_queue = monitor_queue
-        self._err_flag = err_flag
+        self._exit_flag = exit_flag
 
     @monitor
     def run(self):
         pool = self._get_pool()
         while True:
-            if self._err_flag.value:
+            if self._exit_flag.value != 0:
                 pool.terminate()
                 return
             if self._step.get_almost_done():
@@ -76,7 +75,7 @@ class Scheduler(threading.Thread):
                              (self._step.get_name(), msg,
                               self._monitor_queue,
                               self._res_queue,
-                              self._err_flag))
+                              self._exit_flag))
             self._input_queue.task_done()
 
     def _get_pool(self):
@@ -128,6 +127,7 @@ class Step(object):
     def get_pool_type(self):
         return self._pool_type
 
+    @synchronized
     def get_next_step(self):
         return self._next_step
 
@@ -142,6 +142,7 @@ class Step(object):
     def get_almost_done(self):
         return self._almost_done
 
+    @synchronized
     def get_name(self):
         return 'step' + str(self._seq_no)
 
@@ -156,69 +157,73 @@ class Step(object):
     class Runnable(object):
 
         @abstractmethod
-        def _run(self, param, err_flag):
+        def _run(self, param, exit_flag):
             pass
 
         @staticmethod
-        def _notice_fail(step_name, monitor_queue):
+        def _fail(step_name, monitor_queue):
             msg = {'res': 'f', 'step': step_name,
                    'type': 'consume'}
             monitor_queue.put(msg)
 
         @staticmethod
-        def _notice_suc(step_name, monitor_queue):
+        def _suc(step_name, monitor_queue):
             msg = {'res': 's', 'step': step_name,
                    'type': 'consume'}
             monitor_queue.put(msg)
 
         @staticmethod
-        def _notice_produce(step_name, monitor_queue, cnt=1):
-            Step.Runnable._notice_suc(step_name, monitor_queue)
+        def _produce(step_name, monitor_queue, cnt=1):
+            Step.Runnable._suc(step_name, monitor_queue)
             validate(cnt, int)
             msg = {'step': step_name, 'type': 'produce',
                    'cnt': cnt}
             monitor_queue.put(msg)
 
+        def _handle_result(self, step_name, res,
+                           res_queue, monitor_queue):
+            if res_queue:
+                if isinstance(res, Iterator):
+                    try:
+                        cnt = 0
+                        for item in res:
+                            res_queue.put(item)
+                            cnt += 1
+                        self._produce(
+                            step_name, monitor_queue, cnt)
+                    except Exception as e:
+                        Logger().error_logger.exception(e)
+                        self._fail(
+                            step_name, monitor_queue)
+                elif res is not None:
+                    res_queue.put(res)
+                    self._produce(
+                        step_name, monitor_queue)
+                else:
+                    self._suc(
+                        step_name, monitor_queue)
+            else:
+                self._suc(
+                    step_name, monitor_queue)
+
         def run(self, step_name, param, monitor_queue,
-                res_queue, err_flag):
-            if err_flag.value:
+                res_queue, exit_flag):
+            if exit_flag.value:
                 Logger().info_logger \
                     .warn('receive a error signal, return now !')
                 return
             try:
-                res = self._run(param, err_flag)
+                res = self._run(param, exit_flag)
             except Exception as e:
                 Logger().error_logger.exception(e)
-                self._notice_fail(step_name, monitor_queue)
+                self._fail(step_name, monitor_queue)
             else:
-                if err_flag.value:
+                if exit_flag.value:
                     Logger().info_logger \
                         .warn('receive a error signal, return now !')
                     return
-                if res_queue:
-                    if isinstance(res, Iterator):
-                        try:
-                            cnt = 0
-                            for item in res:
-                                if item is not None:
-                                    res_queue.put(item)
-                                    cnt += 1
-                            self._notice_produce(
-                                step_name, monitor_queue, cnt)
-                        except Exception as e:
-                            Logger().error_logger.exception(e)
-                            self._notice_fail(
-                                step_name, monitor_queue)
-                    elif res is not None:
-                        res_queue.put(res)
-                        self._notice_produce(
-                            step_name, monitor_queue)
-                    else:
-                        self._notice_suc(
-                            step_name, monitor_queue)
-                else:
-                    self._notice_suc(
-                        step_name, monitor_queue)
+                self._handle_result(step_name, res,
+                                    res_queue, monitor_queue)
 
 
 class FirstStep(Step):
@@ -242,15 +247,15 @@ class JobMonitor(threading.Thread):
         threading.Thread.__init__(self)
         self._config = config
         self._job = None
-        self._err_flag = None
+        self._exit_flag = None
         self._queue = None
         self._job_info = None
         self._state = 'init'
 
-    def register(self, job, monitor_queue, err_flag):
+    def register(self, job, monitor_queue, exit_flag):
         validate(job, Job)
         self._job = job
-        self._err_flag = err_flag
+        self._exit_flag = exit_flag
         self._queue = monitor_queue
         self._job_info = self._init_job_info()
         self._state = 'ready'
@@ -264,6 +269,20 @@ class JobMonitor(threading.Thread):
                                          'err_cnt': 0}
             step = step.get_next_step()
         return job_info
+
+    def _done(self):
+        if self._state == 'init':
+            return False
+        if self._state == 'done':
+            return True
+        step = self._job.get_step()
+        while step:
+            if self._job_info[step.get_name()] \
+                    .get('progress') != 1:
+                return False
+            step = step.get_next_step()
+        self._state = 'done'
+        return True
 
     def _print_progress(self):
         step = self._job.get_step()
@@ -285,6 +304,7 @@ class JobMonitor(threading.Thread):
                             'task_cnt: {:d}, err_cnt: {:d}, ' \
                 .format(step_name, progress, err_rate,
                         consume_cnt, task_cnt, err_cnt)
+            step_info['progress'] = progress
             Logger().progress_logger.info(progress_info)
             pre_step = step
             step = step.get_next_step()
@@ -305,15 +325,13 @@ class JobMonitor(threading.Thread):
 
     def run(self):
         if self._state != 'ready':
-            raise RuntimeError('wrong state of monitor, not ready !')
-        try:
-            while time.sleep(10) or True:
-                if self._err_flag.value:
-                    return
-                self._refresh_progress()
-                self._print_progress()
-        except:
-            pass
+            raise RuntimeError('wrong state of monitor, '
+                               'not ready !')
+        while self._exit_flag.value == 0 \
+                and not self._done() \
+                and not time.sleep(10):
+            self._refresh_progress()
+            self._print_progress()
 
 
 @singleton
@@ -321,7 +339,8 @@ class JobsContainer(object):
     def __init__(self, config=Config()):
         validate(config, Config)
         self._config = config
-        self._err_flag = Manager().Value('b', False)
+        """0; 正常, 非0: 异常"""
+        self._exit_flag = Manager().Value('b', 0)
         self._job_list = []
         self._state = 'init'
 
@@ -345,12 +364,13 @@ class JobsContainer(object):
         Logger().debug_logger \
             .debug('start container ! config: {%s}', self._config)
         scheduler_list = []
+        monitor_t_list = []
         for job in self._job_list:
             job_monitor = JobMonitor(self._config)
             monitor_queue = Manager().Queue()
-            job_monitor.register(job, monitor_queue, self._err_flag)
-            job_monitor.setDaemon(True)
+            job_monitor.register(job, monitor_queue, self._exit_flag)
             job_monitor.start()
+            monitor_t_list.append(job_monitor)
             step = job.get_step()
             while step:
                 if isinstance(step, FirstStep):
@@ -362,15 +382,18 @@ class JobsContainer(object):
                 res_queue = None if step.is_last_step() \
                     else Manager().Queue()
                 scheduler = Scheduler(step, input_queue,
-                                      res_queue, monitor_queue, self._err_flag)
+                                      res_queue, monitor_queue,
+                                      self._exit_flag)
                 scheduler.start()
                 scheduler_list.append(scheduler)
                 step = step.get_next_step()
 
         for scheduler in scheduler_list:
             scheduler.join()
-        if self._err_flag.value:
-            raise RuntimeError('receive a error signal, exit !')
+        for monitor_t in monitor_t_list:
+            monitor_t.join()
+        if self._exit_flag.value != 0:
+            raise RuntimeError('receive a err signal !')
 
     def close(self):
         self._state = 'closed'

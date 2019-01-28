@@ -10,7 +10,7 @@ from waterfall.logger import Logger
 
 
 class TestRunner(Step.Runnable):
-    def _run(self, params, err_flag):
+    def _run(self, params, exit_flag):
         try:
             print("params : " + str(params))
             time.sleep(1)
@@ -26,10 +26,6 @@ class TestJob(Job):
         for i in range(10):
             queue.put(random.random())
         return queue
-
-
-def _test():
-    raise RuntimeError('test')
 
 
 if __name__ == "__main__":
