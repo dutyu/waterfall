@@ -25,6 +25,7 @@ def _dirname(p):
     if 'Windows' == platform.system():
         return os.path.dirname(p) \
             .replace('\\', '/')
+    return os.path.dirname(p)
 
 
 @singleton

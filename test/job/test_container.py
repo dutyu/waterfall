@@ -34,7 +34,6 @@ if __name__ == "__main__":
     first_step = FirstStep(runner1, 'process', 2, 10)
     second_step = Step(runner1, 'thread', 5, 5)
     first_step.set_next_step(second_step)
-    test_job = TestJob(Config().merge_from_dict({"test2": 2, "test3": 3}), first_step)
+    test_job = TestJob('job1', Config().merge_from_dict({"test2": 2, "test3": 3}), first_step)
     container.add_job(test_job)
     container.set_ready().start()
-    threading.Thread

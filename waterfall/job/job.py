@@ -23,9 +23,11 @@ from waterfall.utils.validate import validate, validate2
 
 
 class Job(object):
-    def __init__(self, config, first_step):
+    def __init__(self, name, config, first_step):
+        validate(name, str)
         validate(config, Config)
         validate(first_step, FirstStep)
+        self._name = name
         self._config = config
         self._first_step = first_step
 
@@ -34,6 +36,9 @@ class Job(object):
 
     def get_step(self):
         return self._first_step
+
+    def get_name(self):
+        return self._name
 
     @abstractmethod
     def stimulate(self):
@@ -299,11 +304,16 @@ class JobMonitor(threading.Thread):
                 task_cnt = pre_step_info.get('produce_cnt')
             progress = 1 if task_cnt == 0 else consume_cnt / task_cnt
             err_rate = 0 if task_cnt == 0 else err_cnt / task_cnt
-            progress_info = 'step: {:s}, progress: {:.2%}, ' \
+            progress_info = 'job: {:s}, step: {:s}, progress: {:.2%}, ' \
                             'err_rate: {:.2%} consume_cnt: {:d}, ' \
                             'task_cnt: {:d}, err_cnt: {:d}, ' \
-                .format(step_name, progress, err_rate,
-                        consume_cnt, task_cnt, err_cnt)
+                .format(self._job.get_name(),
+                        step_name,
+                        progress,
+                        err_rate,
+                        consume_cnt,
+                        task_cnt,
+                        err_cnt)
             step_info['progress'] = progress
             Logger().progress_logger.info(progress_info)
             pre_step = step
@@ -362,13 +372,15 @@ class JobsContainer(object):
                                'container not ready !')
         self._state = 'running'
         Logger().debug_logger \
-            .debug('start container ! config: {%s}', self._config)
+            .debug('start container ! config: {%s}',
+                   self._config)
         scheduler_list = []
         monitor_t_list = []
         for job in self._job_list:
             job_monitor = JobMonitor(self._config)
             monitor_queue = Manager().Queue()
-            job_monitor.register(job, monitor_queue, self._exit_flag)
+            job_monitor.register(job, monitor_queue,
+                                 self._exit_flag)
             job_monitor.start()
             monitor_t_list.append(job_monitor)
             step = job.get_step()
