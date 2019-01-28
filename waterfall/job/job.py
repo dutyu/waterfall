@@ -46,7 +46,8 @@ class Job(object):
 
 
 class Scheduler(threading.Thread):
-    def __init__(self, step, input_queue, res_queue, monitor_queue, exit_flag):
+    def __init__(self, step, input_queue, res_queue,
+                 monitor_queue, exit_flag):
         validate(step, Step)
         threading.Thread.__init__(self)
         self._step = step
@@ -86,7 +87,8 @@ class Scheduler(threading.Thread):
     def _get_pool(self):
         parallelism = self._step.get_parallelism()
         pool_type = self._step.get_pool_type()
-        pool = Pool(parallelism, self._step.get_init_func()) \
+        pool = Pool(parallelism,
+                    self._step.get_init_func()) \
             if pool_type == 'process' \
             else ThreadPool(parallelism)
         return pool
@@ -302,11 +304,16 @@ class JobMonitor(threading.Thread):
             else:
                 pre_step_info = self._job_info[pre_step.get_name()]
                 task_cnt = pre_step_info.get('produce_cnt')
-            progress = 1 if task_cnt == 0 else consume_cnt / task_cnt
-            err_rate = 0 if task_cnt == 0 else err_cnt / task_cnt
-            progress_info = 'job: {:s}, step: {:s}, progress: {:.2%}, ' \
-                            'err_rate: {:.2%} consume_cnt: {:d}, ' \
-                            'task_cnt: {:d}, err_cnt: {:d}, ' \
+            progress = 1 if task_cnt == 0 \
+                else consume_cnt / task_cnt
+            err_rate = 0 if task_cnt == 0 \
+                else err_cnt / task_cnt
+            progress_info = 'job: {:s}, step: {:s}, ' \
+                            'progress: {:.2%}, ' \
+                            'err_rate: {:.2%} ' \
+                            'consume_cnt: {:d}, ' \
+                            'task_cnt: {:d}, ' \
+                            'rr_cnt: {:d}, ' \
                 .format(self._job.get_name(),
                         step_name,
                         progress,
