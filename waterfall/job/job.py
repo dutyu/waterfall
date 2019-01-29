@@ -7,18 +7,15 @@ Author: dutyu
 Date: 2019/01/26 22:12:42
 Brief: job
 """
-import threading
-import time
 import weakref
 from abc import abstractmethod
-from multiprocessing import Manager
-from multiprocessing.pool import Pool, ThreadPool
+from multiprocessing.managers import BaseProxy
 from types import FunctionType
 from typing import Iterator
 
 from waterfall.config.config import Config
-from waterfall.logger import Logger, monitor
-from waterfall.utils.decorators import singleton, synchronized
+from waterfall.logger import Logger
+from waterfall.utils.decorators import synchronized
 from waterfall.utils.validate import validate, validate2
 
 
@@ -45,55 +42,6 @@ class Job(object):
         pass
 
 
-class Scheduler(threading.Thread):
-    def __init__(self, step, input_queue, res_queue,
-                 monitor_queue, exit_flag):
-        validate(step, Step)
-        threading.Thread.__init__(self)
-        self._step = step
-        self._input_queue = input_queue
-        self._res_queue = res_queue
-        self._monitor_queue = monitor_queue
-        self._exit_flag = exit_flag
-
-    @monitor
-    def run(self):
-        pool = self._get_pool()
-        while True:
-            if self._exit_flag.value != 0:
-                pool.terminate()
-                return
-            if self._step.get_almost_done():
-                self._run(pool)
-                pool.close()
-                pool.join()
-                next_step = self._step.get_next_step()
-                if next_step:
-                    next_step.almost_done()
-                return
-            else:
-                self._run(pool)
-
-    def _run(self, pool):
-        while not self._input_queue.empty():
-            msg = self._input_queue.get()
-            pool.apply_async(self._step.get_runner().run,
-                             (self._step.get_name(), msg,
-                              self._monitor_queue,
-                              self._res_queue,
-                              self._exit_flag))
-            self._input_queue.task_done()
-
-    def _get_pool(self):
-        parallelism = self._step.get_parallelism()
-        pool_type = self._step.get_pool_type()
-        pool = Pool(parallelism,
-                    self._step.get_init_func()) \
-            if pool_type == 'process' \
-            else ThreadPool(parallelism)
-        return pool
-
-
 class Step(object):
     def __init__(self, runner, container_type='thread',
                  init_parallelism=2, max_parallelism=8):
@@ -104,7 +52,7 @@ class Step(object):
                   err_msg='init_parallelism should gt then 0 '
                           'and lte then max_parallelism')
         validate(container_type, str)
-        validate(runner, Step.Runnable)
+        validate(runner, Runnable)
         self._seq_no = -1
         self._init_parallelism = init_parallelism
         self._max_parallelism = max_parallelism
@@ -112,16 +60,13 @@ class Step(object):
         self._next_step = None
         self._runner = runner
         self._almost_done = False
+        self._done = False
         self._init_func = None
 
     @synchronized
     def set_next_step(self, next_step):
         validate(next_step, Step)
-
-        def _alert():
-            raise RuntimeError('next_step has been destroyed !')
-
-        self._next_step = weakref.proxy(next_step, _alert)
+        self._next_step = weakref.proxy(next_step)
         self._next_step._seq_no = self._seq_no + 1
         return self._next_step
 
@@ -150,6 +95,14 @@ class Step(object):
         return self._almost_done
 
     @synchronized
+    def get_done(self):
+        return self._done
+
+    @synchronized
+    def set_done(self):
+        self._done = True
+
+    @synchronized
     def get_name(self):
         return 'step' + str(self._seq_no)
 
@@ -160,77 +113,6 @@ class Step(object):
     def get_init_func(self):
         """使用进程池的时候,如果需要初始化,才调用"""
         return self._init_func
-
-    class Runnable(object):
-
-        @abstractmethod
-        def _run(self, param, exit_flag):
-            pass
-
-        @staticmethod
-        def _fail(step_name, monitor_queue):
-            msg = {'res': 'f', 'step': step_name,
-                   'type': 'consume'}
-            monitor_queue.put(msg)
-
-        @staticmethod
-        def _suc(step_name, monitor_queue):
-            msg = {'res': 's', 'step': step_name,
-                   'type': 'consume'}
-            monitor_queue.put(msg)
-
-        @staticmethod
-        def _produce(step_name, monitor_queue, cnt=1):
-            Step.Runnable._suc(step_name, monitor_queue)
-            validate(cnt, int)
-            msg = {'step': step_name, 'type': 'produce',
-                   'cnt': cnt}
-            monitor_queue.put(msg)
-
-        def _handle_result(self, step_name, res,
-                           res_queue, monitor_queue):
-            if res_queue:
-                if isinstance(res, Iterator):
-                    try:
-                        cnt = 0
-                        for item in res:
-                            res_queue.put(item)
-                            cnt += 1
-                        self._produce(
-                            step_name, monitor_queue, cnt)
-                    except Exception as e:
-                        Logger().error_logger.exception(e)
-                        self._fail(
-                            step_name, monitor_queue)
-                elif res is not None:
-                    res_queue.put(res)
-                    self._produce(
-                        step_name, monitor_queue)
-                else:
-                    self._suc(
-                        step_name, monitor_queue)
-            else:
-                self._suc(
-                    step_name, monitor_queue)
-
-        def run(self, step_name, param, monitor_queue,
-                res_queue, exit_flag):
-            if exit_flag.value:
-                Logger().info_logger \
-                    .warn('receive a error signal, return now !')
-                return
-            try:
-                res = self._run(param, exit_flag)
-            except Exception as e:
-                Logger().error_logger.exception(e)
-                self._fail(step_name, monitor_queue)
-            else:
-                if exit_flag.value:
-                    Logger().info_logger \
-                        .warn('receive a error signal, return now !')
-                    return
-                self._handle_result(step_name, res,
-                                    res_queue, monitor_queue)
 
 
 class FirstStep(Step):
@@ -248,171 +130,65 @@ class FirstStep(Step):
         self._task_cnt = task_cnt
 
 
-class JobMonitor(threading.Thread):
-    def __init__(self, config=Config()):
-        validate(config, Config)
-        threading.Thread.__init__(self)
-        self._config = config
-        self._job = None
-        self._exit_flag = None
-        self._queue = None
-        self._job_info = None
-        self._state = 'init'
+class Runnable(object):
+    @abstractmethod
+    def _run(self, param, exit_flag):
+        pass
 
-    def register(self, job, monitor_queue, exit_flag):
-        validate(job, Job)
-        self._job = job
-        self._exit_flag = exit_flag
-        self._queue = monitor_queue
-        self._job_info = self._init_job_info()
-        self._state = 'ready'
+    @staticmethod
+    def _fail(step_name, monitor_queue):
+        msg = {'res': 'f', 'step': step_name,
+               'type': 'c'}
+        monitor_queue.put(msg)
 
-    def _init_job_info(self):
-        job_info = {}
-        step = self._job.get_step()
-        while step:
-            job_info[step.get_name()] = {'consume_cnt': 0,
-                                         'produce_cnt': 0,
-                                         'err_cnt': 0}
-            step = step.get_next_step()
-        return job_info
+    @staticmethod
+    def _suc(step_name, monitor_queue):
+        msg = {'res': 's', 'step': step_name,
+               'type': 'c'}
+        monitor_queue.put(msg)
 
-    def _done(self):
-        if self._state == 'init':
-            return False
-        if self._state == 'done':
-            return True
-        step = self._job.get_step()
-        while step:
-            if self._job_info[step.get_name()] \
-                    .get('progress') != 1:
-                return False
-            step = step.get_next_step()
-        self._state = 'done'
-        return True
+    @staticmethod
+    def _produce(item, step_name,
+                 res_queue, monitor_queue):
+        res_queue.put(item)
+        msg = {'step': step_name, 'cnt': 1,
+               'type': 'p'}
+        monitor_queue.put(msg)
 
-    def _print_progress(self):
-        step = self._job.get_step()
-        pre_step = None
-        while step:
-            step_name = step.get_name()
-            step_info = self._job_info[step_name]
-            consume_cnt = step_info.get('consume_cnt')
-            err_cnt = step_info.get('err_cnt')
-            if isinstance(step, FirstStep):
-                task_cnt = step.get_task_cnt()
+    def _handle_result(self, step_name, res,
+                       res_queue, monitor_queue):
+        if res_queue:
+            if isinstance(res, Iterator):
+                for item in res:
+                    self._produce(item, step_name,
+                                  res_queue, monitor_queue)
+            elif res is not None:
+                self._produce(res, step_name,
+                              res_queue, monitor_queue)
+
+    def run(self, step_name, param, monitor_queue,
+            res_queue, exit_flag):
+        validate(step_name, str)
+        validate(monitor_queue, BaseProxy)
+        if exit_flag.value:
+            Logger().info_logger \
+                .warn('receive a exit signal, return now !')
+            return
+        try:
+            res = self._run(param, exit_flag)
+        except Exception as e:
+            Logger().error_logger.exception(e)
+            self._fail(step_name, monitor_queue)
+        else:
+            if exit_flag.value:
+                Logger().info_logger \
+                    .warn('receive a exit signal, return now !')
+                return
+            try:
+                self._handle_result(step_name, res,
+                                    res_queue, monitor_queue)
+            except Exception as e:
+                Logger().error_logger.exception(e)
+                self._fail(step_name, monitor_queue)
             else:
-                pre_step_info = self._job_info[pre_step.get_name()]
-                task_cnt = pre_step_info.get('produce_cnt')
-            progress = 1 if task_cnt == 0 \
-                else consume_cnt / task_cnt
-            err_rate = 0 if task_cnt == 0 \
-                else err_cnt / task_cnt
-            progress_info = 'job: {:s}, step: {:s}, ' \
-                            'progress: {:.2%}, ' \
-                            'err_rate: {:.2%} ' \
-                            'consume_cnt: {:d}, ' \
-                            'task_cnt: {:d}, ' \
-                            'rr_cnt: {:d}, ' \
-                .format(self._job.get_name(),
-                        step_name,
-                        progress,
-                        err_rate,
-                        consume_cnt,
-                        task_cnt,
-                        err_cnt)
-            step_info['progress'] = progress
-            Logger().progress_logger.info(progress_info)
-            pre_step = step
-            step = step.get_next_step()
-
-    def _refresh_progress(self):
-        while not self._queue.empty():
-            msg = self._queue.get()
-            step_info = self._job_info[msg.get('step')]
-            if msg.get('type') == 'produce':
-                step_info['produce_cnt'] += msg.get('cnt')
-            elif msg.get('type') == 'consume':
-                res = msg.get('res')
-                if res == 'f':
-                    step_info['err_cnt'] += 1
-                else:
-                    step_info['consume_cnt'] += 1
-            self._queue.task_done()
-
-    def run(self):
-        if self._state != 'ready':
-            raise RuntimeError('wrong state of monitor, '
-                               'not ready !')
-        while self._exit_flag.value == 0 \
-                and not self._done() \
-                and not time.sleep(10):
-            self._refresh_progress()
-            self._print_progress()
-
-
-@singleton
-class JobsContainer(object):
-    def __init__(self, config=Config()):
-        validate(config, Config)
-        self._config = config
-        """0; 正常, 非0: 异常"""
-        self._exit_flag = Manager().Value('b', 0)
-        self._job_list = []
-        self._state = 'init'
-
-    def get_state(self):
-        return self._state
-
-    def add_job(self, job):
-        validate(job, Job)
-        self._job_list.append(job)
-        return self
-
-    def set_ready(self):
-        self._state = 'ready'
-        return self
-
-    def start(self):
-        if self._state != 'ready':
-            raise RuntimeError('wrong state of container , '
-                               'container not ready !')
-        self._state = 'running'
-        Logger().debug_logger \
-            .debug('start container ! config: {%s}',
-                   self._config)
-        scheduler_list = []
-        monitor_t_list = []
-        for job in self._job_list:
-            job_monitor = JobMonitor(self._config)
-            monitor_queue = Manager().Queue()
-            job_monitor.register(job, monitor_queue,
-                                 self._exit_flag)
-            job_monitor.start()
-            monitor_t_list.append(job_monitor)
-            step = job.get_step()
-            while step:
-                if isinstance(step, FirstStep):
-                    input_queue = job.stimulate()
-                    step.almost_done()
-                    step.set_task_cnt(input_queue.qsize())
-                else:
-                    input_queue = res_queue
-                res_queue = None if step.is_last_step() \
-                    else Manager().Queue()
-                scheduler = Scheduler(step, input_queue,
-                                      res_queue, monitor_queue,
-                                      self._exit_flag)
-                scheduler.start()
-                scheduler_list.append(scheduler)
-                step = step.get_next_step()
-
-        for scheduler in scheduler_list:
-            scheduler.join()
-        for monitor_t in monitor_t_list:
-            monitor_t.join()
-        if self._exit_flag.value != 0:
-            raise RuntimeError('receive a err signal !')
-
-    def close(self):
-        self._state = 'closed'
+                self._suc(step_name, monitor_queue)
