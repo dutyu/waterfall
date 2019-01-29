@@ -1,3 +1,2 @@
 requests>=2.21.0
 Crypto>=2.6.1
-cardinality>=0.1.1

@@ -49,7 +49,7 @@ class Step(object):
         validate(max_parallelism, int)
         validate2(init_parallelism, max_parallelism,
                   func=lambda v1, v2: 0 < v1 <= v2,
-                  err_msg='init_parallelism should gt then 0 '
+                  err_msg='init_parallelism should be gt then 0 '
                           'and lte then max_parallelism')
         validate(container_type, str)
         validate(runner, Runnable)

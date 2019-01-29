@@ -7,10 +7,10 @@ Author: dutyu
 Date: 2019/01/29 11:48:23
 Brief: container
 """
+import collections
 import sys
 from multiprocessing import Manager
-from typing import Iterable
-import cardinality
+from typing import Iterator
 
 from waterfall.config.config import Config
 from waterfall.job.job import Job, FirstStep
@@ -18,7 +18,7 @@ from waterfall.job.monitor import JobMonitor
 from waterfall.job.schedule import Scheduler
 from waterfall.logger import Logger
 from waterfall.utils.decorators import singleton
-from waterfall.utils.validate import validate
+from waterfall.utils.validate import validate, at_most
 
 
 @singleton
@@ -63,6 +63,14 @@ class JobsContainer(object):
         for monitor_t in self._monitor_list:
             monitor_t.join()
 
+    @staticmethod
+    def _count(iterable):
+        if hasattr(iterable, '__len__'):
+            return len(iterable)
+        d = collections.deque(
+            enumerate(iterable, 1), maxlen=1)
+        return d[0][0] if d else 0
+
     def _start(self):
         if self._state != 'ready':
             raise RuntimeError('wrong state of container , '
@@ -83,19 +91,16 @@ class JobsContainer(object):
             while step:
                 if isinstance(step, FirstStep):
                     input_data = job.stimulate()
-                    validate(input_data, Iterable,
-                             err_msg='job\'s stimulate method '
-                                     'must return a iterable value !')
-                    if isinstance(input_data, Iterable) and \
-                            not cardinality.at_most(2 ** 20, input_data):
-                        raise RuntimeError('job\'s stimulate method '
-                                           'produce too large items !')
+                    at_most(2 ** 20, input_data,
+                            'the return value of the job\'s '
+                            'stimulate method is too large !')
                     input_queue = Manager().Queue()
-                    input_data = job.stimulate()
+                    if isinstance(input_data, Iterator):
+                        input_data = job.stimulate()
                     for item in input_data:
                         input_queue.put(item)
                     step.almost_done()
-                    step.set_task_cnt(cardinality.count(input_data))
+                    step.set_task_cnt(self._count(input_data))
                 else:
                     input_queue = res_queue
                 res_queue = None if step.is_last_step() \
