@@ -2,7 +2,7 @@ import random
 import time
 
 from waterfall.config.config import Config
-from waterfall.job.container import JobsContainer
+from waterfall.job.scheduler import JobScheduler
 from waterfall.job.job import Job, FirstStep, Step, Runnable
 
 
@@ -40,7 +40,8 @@ class TestJob(Job):
 
 
 if __name__ == "__main__":
-    container = JobsContainer(
+    start_time = time.time()
+    scheduler = JobScheduler(
         Config().merge_from_dict({"test": 1, "test2": 2}))
     runner1 = TestRunner()
     runner2 = TestRunner2()
@@ -51,6 +52,7 @@ if __name__ == "__main__":
     test_job = TestJob('job1',
                        Config().merge_from_dict(
                            {"test2": 2, "test3": 3}), first_step)
-    container.add_job(test_job)
-    container.set_ready().start()
-    container.close()
+    scheduler.add_job(test_job)
+    scheduler.set_ready().start()
+    scheduler.close()
+    print('cost time: {:.2f}'.format(time.time() - start_time))

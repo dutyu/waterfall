@@ -4,102 +4,65 @@
 """
 File: container.py
 Author: dutyu
-Date: 2019/01/29 11:48:23
-Brief: container
+Date: 2019/01/26 22:12:42
+Brief: schedule
 """
-import collections
-import sys
-from multiprocessing import Manager
-from typing import Iterator
+import threading
+from multiprocessing.managers import BaseProxy
+from multiprocessing.pool import Pool, ThreadPool
 
-from waterfall.config.config import Config
-from waterfall.job.job import Job, FirstStep
-from waterfall.job.monitor import JobMonitor
-from waterfall.job.schedule import Scheduler
-from waterfall.logger import Logger
-from waterfall.utils.decorators import singleton
-from waterfall.utils.validate import validate, at_most
+from waterfall.job.job import Step
+from waterfall.logger import monitor
+from waterfall.utils.validate import validate
 
 
-@singleton
-class JobsContainer(object):
-    def __init__(self, config=Config()):
-        validate(config, Config)
-        self._config = config
-        """0; 正常, 非0: 异常"""
-        self._exit_flag = Manager().Value('b', 0)
-        self._job_list = []
-        self._monitor_list = []
-        self._scheduler_list = []
-        self._state = 'init'
+class Container(threading.Thread):
+    def __init__(self, step, input_queue, res_queue,
+                 monitor_queue, exit_flag):
+        validate(step, Step)
+        validate(input_queue, BaseProxy)
+        validate(res_queue, BaseProxy, None)
+        threading.Thread.__init__(self)
+        self._step = step
+        self._input_queue = input_queue
+        self._res_queue = res_queue
+        self._monitor_queue = monitor_queue
+        self._exit_flag = exit_flag
 
-    def get_state(self):
-        return self._state
+    @monitor
+    def run(self):
+        pool = self._get_pool()
+        while True:
+            if self._exit_flag.value:
+                pool.terminate()
+                return
+            if self._step.get_almost_done():
+                self._run(pool)
+                pool.close()
+                pool.join()
+                self._step.set_done()
+                next_step = self._step.get_next_step()
+                if next_step:
+                    next_step.almost_done()
+                return
+            else:
+                self._run(pool)
 
-    def add_job(self, job):
-        validate(job, Job)
-        self._job_list.append(job)
-        return self
+    def _run(self, pool):
+        while not self._input_queue.empty():
+            msg = self._input_queue.get()
+            pool.apply_async(self._step.get_runner().run,
+                             (self._step.get_name(), msg,
+                              self._monitor_queue,
+                              self._res_queue,
+                              self._exit_flag))
+            self._input_queue.task_done()
 
-    def set_ready(self):
-        self._state = 'ready'
-        return self
-
-    def start(self):
-        try:
-            self._start()
-        except Exception as e:
-            Logger().error_logger.exception(e)
-            self._exit_flag.value = 1
-
-    def close(self):
-        self._join()
-        self._state = 'closed'
-        sys.exit(self._exit_flag.value)
-
-    def _join(self):
-        for scheduler in self._scheduler_list:
-            scheduler.join()
-        for monitor in self._monitor_list:
-            monitor.join()
-
-    def _start(self):
-        if self._state != 'ready':
-            raise RuntimeError('wrong state of container , '
-                               'container not ready !')
-        self._state = 'running'
-        Logger().debug_logger \
-            .debug('start container ! config: {%s}',
-                   self._config)
-
-        for job in self._job_list:
-            job_monitor = JobMonitor(self._config)
-            monitor_queue = Manager().Queue()
-            job_monitor.register(job, monitor_queue,
-                                 self._exit_flag)
-            job_monitor.start()
-            self._monitor_list.append(job_monitor)
-            step = job.get_step()
-            while step:
-                if isinstance(step, FirstStep):
-                    input_data = job.stimulate()
-                    at_most(2 ** 20, input_data,
-                            'the return value of the job\'s '
-                            'stimulate method is too large !')
-                    input_queue = Manager().Queue()
-                    if isinstance(input_data, Iterator):
-                        input_data = job.stimulate()
-                    for item in input_data:
-                        input_queue.put(item)
-                    step.almost_done()
-                    step.set_task_cnt(input_queue.qsize())
-                else:
-                    input_queue = res_queue
-                res_queue = None if step.is_last_step() \
-                    else Manager().Queue(10000)
-                scheduler = Scheduler(step, input_queue,
-                                      res_queue, monitor_queue,
-                                      self._exit_flag)
-                scheduler.start()
-                self._scheduler_list.append(scheduler)
-                step = step.get_next_step()
+    def _get_pool(self):
+        parallelism = self._step.get_parallelism()
+        pool_type = self._step.get_pool_type()
+        pool = Pool(parallelism,
+                    self._step.get_init_func()) \
+            if pool_type == 'process' \
+            else ThreadPool(parallelism)
+        return pool
