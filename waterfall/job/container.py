@@ -60,16 +60,8 @@ class JobsContainer(object):
     def _join(self):
         for scheduler in self._scheduler_list:
             scheduler.join()
-        for monitor_t in self._monitor_list:
-            monitor_t.join()
-
-    @staticmethod
-    def _count(iterable):
-        if hasattr(iterable, '__len__'):
-            return len(iterable)
-        d = collections.deque(
-            enumerate(iterable, 1), maxlen=1)
-        return d[0][0] if d else 0
+        for monitor in self._monitor_list:
+            monitor.join()
 
     def _start(self):
         if self._state != 'ready':
@@ -100,7 +92,7 @@ class JobsContainer(object):
                     for item in input_data:
                         input_queue.put(item)
                     step.almost_done()
-                    step.set_task_cnt(self._count(input_data))
+                    step.set_task_cnt(input_queue.qsize())
                 else:
                     input_queue = res_queue
                 res_queue = None if step.is_last_step() \

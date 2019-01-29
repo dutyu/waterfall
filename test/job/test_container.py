@@ -11,7 +11,7 @@ class TestRunner(Runnable):
         print("params : " + str(params))
         time.sleep(0.01)
         print("run finish !")
-        return (i for i in range(0, 100))
+        return (i for i in range(0, 10))
 
 
 class TestRunner2(Runnable):
@@ -20,10 +20,10 @@ class TestRunner2(Runnable):
         j = 0
         res = random.random()
         while j < 100000:
-            res /= 2 * 21 ** 3 / (random.random() * 3.231) + \
-                   2 ** 4 / 3211.23231 - 342342 * 32 / random.random() % 898
+            res = (2 * 21 ** 3 / 3.231 + 2 ** 4 / 3211.23231
+                   - 342342 * 32 + random.random()) % random.random()
             j += 1
-        print("run finish ! res: {%s}", res)
+        print("run finish ! res: {:.2f}".format(res))
         return res
 
 
@@ -31,7 +31,7 @@ class TestJob(Job):
     @staticmethod
     def _generator(res):
         i = 0
-        while i < (2 ** 20 + 2):
+        while i < (2 ** 10):
             yield res
             i += 1
 
@@ -44,9 +44,9 @@ if __name__ == "__main__":
         Config().merge_from_dict({"test": 1, "test2": 2}))
     runner1 = TestRunner()
     runner2 = TestRunner2()
-    first_step = FirstStep(runner1, 'thread', 12, 10)
-    second_step = Step(runner2, 'process', 4, 2000)
-    third_step = Step(runner1, 'thread', 1000, 4000)
+    first_step = FirstStep(runner1, 'thread', 10, 10)
+    second_step = Step(runner2, 'process', 8, 20)
+    third_step = Step(runner1, 'thread', 100, 4000)
     first_step.set_next_step(second_step).set_next_step(third_step)
     test_job = TestJob('job1',
                        Config().merge_from_dict(

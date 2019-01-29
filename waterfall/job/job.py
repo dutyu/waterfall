@@ -137,7 +137,7 @@ class Runnable(object):
         validate(monitor_queue, BaseProxy)
         if exit_flag.value:
             Logger().info_logger \
-                .warn('receive a exit signal, return now !')
+                .warn('receive an exit signal, return now !')
             return
         try:
             res = self._run(param, exit_flag)
@@ -147,7 +147,7 @@ class Runnable(object):
         else:
             if exit_flag.value:
                 Logger().info_logger \
-                    .warn('receive a exit signal, return now !')
+                    .warn('receive an exit signal, return now !')
                 return
             try:
                 self._handle_result(step_name, res,
