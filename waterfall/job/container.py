@@ -82,7 +82,7 @@ class JobsContainer(object):
                              err_msg='job\'s stimulate method '
                                      'must return a iterable value !')
                     if isinstance(input_data, Iterable) and \
-                            not cardinality.at_most(2 ** 32, input_data):
+                            not cardinality.at_most(2 ** 20, input_data):
                         raise RuntimeError('job\'s stimulate method '
                                            'produce too large items !')
                     input_queue = Manager().Queue()

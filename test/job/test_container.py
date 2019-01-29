@@ -30,7 +30,7 @@ class TestJob(Job):
     @staticmethod
     def _generator(res):
         i = 0
-        while i < (2 ** 32 + 2):
+        while i < (2 ** 19 + 2):
             yield res
             i += 1
 
