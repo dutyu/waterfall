@@ -52,6 +52,11 @@ class JobsContainer(object):
             Logger().error_logger.exception(e)
             self._exit_flag.value = 1
 
+    def close(self):
+        self._join()
+        self._state = 'closed'
+        sys.exit(self._exit_flag.value)
+
     def _join(self):
         for scheduler in self._scheduler_list:
             scheduler.join()
@@ -101,8 +106,3 @@ class JobsContainer(object):
                 scheduler.start()
                 self._scheduler_list.append(scheduler)
                 step = step.get_next_step()
-
-    def close(self):
-        self._join()
-        self._state = 'closed'
-        sys.exit(self._exit_flag.value)

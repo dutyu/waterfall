@@ -131,6 +131,33 @@ class FirstStep(Step):
 
 
 class Runnable(object):
+    def run(self, step_name, param, monitor_queue,
+            res_queue, exit_flag):
+        validate(step_name, str)
+        validate(monitor_queue, BaseProxy)
+        if exit_flag.value:
+            Logger().info_logger \
+                .warn('receive a exit signal, return now !')
+            return
+        try:
+            res = self._run(param, exit_flag)
+        except Exception as e:
+            Logger().error_logger.exception(e)
+            self._fail(step_name, monitor_queue)
+        else:
+            if exit_flag.value:
+                Logger().info_logger \
+                    .warn('receive a exit signal, return now !')
+                return
+            try:
+                self._handle_result(step_name, res,
+                                    res_queue, monitor_queue)
+            except Exception as e:
+                Logger().error_logger.exception(e)
+                self._fail(step_name, monitor_queue)
+            else:
+                self._suc(step_name, monitor_queue)
+
     @abstractmethod
     def _run(self, param, exit_flag):
         pass
@@ -165,30 +192,3 @@ class Runnable(object):
             elif res is not None:
                 self._produce(res, step_name,
                               res_queue, monitor_queue)
-
-    def run(self, step_name, param, monitor_queue,
-            res_queue, exit_flag):
-        validate(step_name, str)
-        validate(monitor_queue, BaseProxy)
-        if exit_flag.value:
-            Logger().info_logger \
-                .warn('receive a exit signal, return now !')
-            return
-        try:
-            res = self._run(param, exit_flag)
-        except Exception as e:
-            Logger().error_logger.exception(e)
-            self._fail(step_name, monitor_queue)
-        else:
-            if exit_flag.value:
-                Logger().info_logger \
-                    .warn('receive a exit signal, return now !')
-                return
-            try:
-                self._handle_result(step_name, res,
-                                    res_queue, monitor_queue)
-            except Exception as e:
-                Logger().error_logger.exception(e)
-                self._fail(step_name, monitor_queue)
-            else:
-                self._suc(step_name, monitor_queue)

@@ -42,6 +42,17 @@ class JobMonitor(threading.Thread):
         self._job_info = self._init_job_info()
         self._state = 'ready'
 
+    def run(self):
+        if self._state != 'ready':
+            raise RuntimeError('wrong state of monitor, '
+                               'not ready !')
+        self._start_ts = time.time()
+        while not self._exit_flag.value \
+                and not self._done() \
+                and not time.sleep(10):
+            self._refresh_progress()
+            self._print_progress()
+
     def _init_job_info(self):
         job_info = {}
         step = self._job.get_step()
@@ -124,14 +135,3 @@ class JobMonitor(threading.Thread):
             if c_cnt >= 10000:
                 self._print_progress()
                 c_cnt = 0
-
-    def run(self):
-        if self._state != 'ready':
-            raise RuntimeError('wrong state of monitor, '
-                               'not ready !')
-        self._start_ts = time.time()
-        while not self._exit_flag.value \
-                and not self._done() \
-                and not time.sleep(10):
-            self._refresh_progress()
-            self._print_progress()
