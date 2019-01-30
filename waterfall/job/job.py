@@ -41,6 +41,13 @@ class Job(object):
     def stimulate(self):
         pass
 
+    def validate(self, job_state):
+        for step_name in job_state.keys():
+            step_info = job_state[step_name]
+            if step_info.get('err_cnt') > 1000:
+                return False
+        return True
+
 
 class Step(object):
     def __init__(self, runner, container_type='thread',
@@ -123,9 +130,11 @@ class FirstStep(Step):
         self._seq_no = 1
         self._task_cnt = 0
 
+    @synchronized
     def get_task_cnt(self):
         return self._task_cnt
 
+    @synchronized
     def set_task_cnt(self, task_cnt):
         self._task_cnt = task_cnt
 

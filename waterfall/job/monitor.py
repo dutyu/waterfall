@@ -12,6 +12,8 @@ import threading
 import time
 from multiprocessing.managers import BaseProxy
 
+import copy
+
 from waterfall.config.config import Config
 from waterfall.job.job import Job, FirstStep
 from waterfall.logger import Logger
@@ -29,7 +31,7 @@ class JobMonitor(threading.Thread):
         self._job = None
         self._exit_flag = None
         self._queue = None
-        self._job_info = None
+        self._job_state = None
         self._state = 'init'
         self._start_ts = None
 
@@ -39,7 +41,7 @@ class JobMonitor(threading.Thread):
         self._job = job
         self._exit_flag = exit_flag
         self._queue = monitor_queue
-        self._job_info = self._init_job_info()
+        self._job_state = self._init_job_state()
         self._state = 'ready'
 
     def run(self):
@@ -50,18 +52,25 @@ class JobMonitor(threading.Thread):
         while not self._exit_flag.value \
                 and not self._done() \
                 and not time.sleep(10):
-            self._refresh_progress()
-            self._print_progress()
+            try:
+                self._refresh_progress()
+                self._check_job_state()
+                self._print_progress()
+            except Exception as e:
+                Logger().error_logger.exception(e)
+                break
+        Logger().debug_logger.debug('monitor thread exit !')
 
-    def _init_job_info(self):
-        job_info = {}
+    def _init_job_state(self):
+        job_state = {}
         step = self._job.get_step()
         while step:
-            job_info[step.get_name()] = {'suc_cnt': 0,
-                                         'produce_cnt': 0,
-                                         'err_cnt': 0}
+            job_state[step.get_name()] \
+                = {'suc_cnt': 0,
+                   'produce_cnt': 0,
+                   'err_cnt': 0}
             step = step.get_next_step()
-        return job_info
+        return job_state
 
     def _done(self):
         if self._state == 'init':
@@ -76,20 +85,29 @@ class JobMonitor(threading.Thread):
         self._state = 'done'
         return True
 
+    def _check_job_state(self):
+        if not self._job.validate(
+                copy.deepcopy(self._job_state)):
+            err_msg = 'job {:s}\'s state is failed' \
+                      ', exit now !' \
+                .format(self._job.get_name())
+            self._exit_flag.value = 1
+            raise RuntimeError(err_msg)
+
     def _print_progress(self):
         step = self._job.get_step()
         pre_step = None
         Logger().progress_logger.info(self._RULES_LINE)
         while step:
             step_name = step.get_name()
-            step_info = self._job_info[step_name]
+            step_info = self._job_state[step_name]
             suc_cnt = step_info.get('suc_cnt')
             err_cnt = step_info.get('err_cnt')
 
             if isinstance(step, FirstStep):
                 task_cnt = step.get_task_cnt()
             else:
-                pre_step_info = self._job_info \
+                pre_step_info = self._job_state \
                     .get(pre_step.get_name())
                 task_cnt = pre_step_info.get('produce_cnt')
 
@@ -121,7 +139,7 @@ class JobMonitor(threading.Thread):
         c_cnt = 0
         while not self._queue.empty():
             msg = self._queue.get()
-            step_info = self._job_info[msg.get('step')]
+            step_info = self._job_state[msg.get('step')]
             if msg.get('type') == 'p':
                 step_info['produce_cnt'] += msg.get('cnt')
             elif msg.get('type') == 'c':
@@ -133,5 +151,6 @@ class JobMonitor(threading.Thread):
             self._queue.task_done()
             c_cnt += 1
             if c_cnt >= 1000:
+                self._check_job_state()
                 self._print_progress()
                 c_cnt = 0

@@ -8,14 +8,19 @@ from waterfall.job.job import Job, FirstStep, Step, Runnable
 
 class TestRunner(Runnable):
     def _run(self, params, exit_flag):
+        if exit_flag.value:
+            return
         print("params : " + str(params))
         time.sleep(0.01)
+        raise RuntimeError('test')
         print("run finish !")
-        return (i for i in range(0, 10))
+        return (i for i in range(0, 100))
 
 
 class TestRunner2(Runnable):
     def _run(self, params, exit_flag):
+        if exit_flag.value:
+            return
         print("params : " + str(params))
         j = 0
         res = random.random()
@@ -31,7 +36,7 @@ class TestJob(Job):
     @staticmethod
     def _generator(res):
         i = 0
-        while i < (2 ** 10):
+        while i < (2 ** 12):
             yield res
             i += 1
 

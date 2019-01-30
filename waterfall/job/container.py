@@ -49,7 +49,8 @@ class Container(threading.Thread):
                 self._run(pool)
 
     def _run(self, pool):
-        while not self._input_queue.empty():
+        while not self._input_queue.empty() and \
+                not self._exit_flag.value:
             msg = self._input_queue.get()
             pool.apply_async(self._step.get_runner().run,
                              (self._step.get_name(), msg,
