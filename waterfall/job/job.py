@@ -44,7 +44,7 @@ class Job(object):
     def validate(self, job_state):
         for step_name in job_state.keys():
             step_info = job_state[step_name]
-            if step_info.get('err_cnt') > 1000:
+            if step_info.get('err_cnt') > 0:
                 return False
         return True
 
