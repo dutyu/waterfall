@@ -1,2 +1,2 @@
 # waterfall
-A general data pusher for HDFS.
+A general offline task implementation framework.

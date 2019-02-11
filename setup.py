@@ -7,7 +7,7 @@ import sys
 from setuptools import find_packages, setup, Command
 
 NAME = 'waterfall'
-DESCRIPTION = 'A general data pusher for HDFS.'
+DESCRIPTION = 'A general offline task implementation framework.'
 URL = 'https://github.com/dutyu/waterfall'
 EMAIL = 'dut.xiangyu@gmail.com'
 AUTHOR = 'dutyu'

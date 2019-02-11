@@ -5,17 +5,16 @@
 File: scheduler.py
 Author: dutyu
 Date: 2019/01/29 11:48:23
-Brief: container
+Brief: scheduler
 """
-import collections
 import sys
 from multiprocessing import Manager
 from typing import Iterator
 
 from waterfall.config.config import Config
+from waterfall.job.container import Container
 from waterfall.job.job import Job, FirstStep
 from waterfall.job.monitor import JobMonitor
-from waterfall.job.container import Container
 from waterfall.logger import Logger
 from waterfall.utils.decorators import singleton
 from waterfall.utils.validate import validate, at_most

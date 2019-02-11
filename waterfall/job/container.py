@@ -5,7 +5,7 @@
 File: container.py
 Author: dutyu
 Date: 2019/01/26 22:12:42
-Brief: schedule
+Brief: container
 """
 import threading
 from multiprocessing.managers import BaseProxy
