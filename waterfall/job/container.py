@@ -21,7 +21,7 @@ class Container(threading.Thread):
                  monitor_queue, exit_flag):
         validate(step, Step)
         validate(input_queue, BaseProxy)
-        validate(res_queue, BaseProxy, None)
+        validate(res_queue, BaseProxy)
         threading.Thread.__init__(self)
         self._step = step
         self._input_queue = input_queue
