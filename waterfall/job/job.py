@@ -20,10 +20,11 @@ from waterfall.utils.validate import validate, validate2
 
 
 class Job(object):
-    def __init__(self, name, config, first_step):
+    def __init__(self, job_id, name, config, first_step):
         validate(name, str)
         validate(config, Config)
         validate(first_step, FirstStep)
+        self._id = job_id
         self._name = name
         self._config = config
         self._first_step = first_step
@@ -36,6 +37,9 @@ class Job(object):
 
     def get_name(self):
         return self._name
+
+    def get_id(self):
+        return self._id
 
     @abstractmethod
     def stimulate(self):
@@ -112,6 +116,10 @@ class Step(object):
     @synchronized
     def get_name(self):
         return 'step' + str(self._seq_no)
+
+    @synchronized
+    def get_seq_no(self):
+        return self._seq_no
 
     def set_init_func(self, func):
         validate(func, FunctionType)

@@ -16,6 +16,7 @@ from waterfall.job.container import Container
 from waterfall.job.job import Job, FirstStep
 from waterfall.job.monitor import JobMonitor
 from waterfall.logger import Logger
+from waterfall.queue import QueueFactory
 from waterfall.utils.decorators import singleton
 from waterfall.utils.validate import validate, at_most
 
@@ -31,6 +32,7 @@ class JobScheduler(object):
         self._monitor_list = []
         self._container_list = []
         self._state = 'init'
+        self._queue_factory = QueueFactory()
 
     def get_state(self):
         return self._state
@@ -72,8 +74,10 @@ class JobScheduler(object):
                    self._config)
 
         for job in self._job_list:
+            self._queue_factory.register_queues(job)
             job_monitor = JobMonitor(self._config)
-            monitor_queue = Manager().Queue()
+            monitor_queue = self._queue_factory \
+                .get_monitor_queue(job)
             job_monitor.register(job, monitor_queue,
                                  self._exit_flag)
             job_monitor.start()
@@ -85,7 +89,8 @@ class JobScheduler(object):
                     at_most(2 ** 20, input_data,
                             'the return value of the job\'s '
                             'stimulate method is too large !')
-                    input_queue = Manager().Queue()
+                    input_queue = self._queue_factory \
+                        .get_input_queue(job, step)
                     if isinstance(input_data, Iterator):
                         input_data = job.stimulate()
                     for item in input_data:
@@ -94,8 +99,8 @@ class JobScheduler(object):
                     step.set_task_cnt(input_queue.qsize())
                 else:
                     input_queue = res_queue
-                res_queue = None if step.is_last_step() \
-                    else Manager().Queue(10000)
+                res_queue = self._queue_factory \
+                    .get_res_queue(job, step)
                 container = Container(step, input_queue,
                                       res_queue, monitor_queue,
                                       self._exit_flag)
