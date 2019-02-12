@@ -39,7 +39,7 @@ class QueueFactory(object):
             self._manager_cls.register(input_func_str,
                                        callable=_queue_producer_func)
             step = step.get_next_step()
-        manager = self._manager_cls(address=('', port), authkey=b'abc')
+        manager = self._manager_cls(address=('127.0.0.1', port))
         manager.start()
         self._managers[job_id] = manager
 
@@ -47,16 +47,17 @@ class QueueFactory(object):
         validate(step, Step)
         validate(job, Job)
         job_id = str(job.get_id()).replace('-', '')
-        step_seq_no = str(step.get_seq_no)
+        step_seq_no = str(step.get_seq_no())
         input_func_str = 'input' + job_id + '_' + step_seq_no
         return self._get_queue(job_id, input_func_str, ip, port)
 
     def get_res_queue(self, job, step, ip='', port=5000):
         validate(step, Step)
         validate(job, Job)
-        job_id = str(job.get_id()).replace('-', '')
+        if step.is_last_step():
+            return None
         next_step = step.get_next_step()
-        return self.get_input_queue(job_id, next_step, ip, port)
+        return self.get_input_queue(job, next_step, ip, port)
 
     def get_monitor_queue(self, job, ip='', port=5000):
         validate(job, Job)
@@ -68,7 +69,7 @@ class QueueFactory(object):
         if ip == '':
             manager = self._managers[job_id]
         else:
-            manager = self._manager_cls(address=(ip, port), authkey=b'abc')
+            manager = self._manager_cls(address=(ip, port))
             manager.connect()
         func = getattr(manager, func_str)
         return func()
