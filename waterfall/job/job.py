@@ -160,7 +160,7 @@ class Runnable(object):
             res = self._run(param, exit_flag)
         except Exception as e:
             Logger().error_logger.exception(e)
-            self._fail(step_name, monitor_queue)
+            self._fail(exit_flag, step_name, monitor_queue)
         else:
             if exit_flag.value:
                 Logger().info_logger \
@@ -171,25 +171,33 @@ class Runnable(object):
                                     res_queue, monitor_queue)
             except Exception as e:
                 Logger().error_logger.exception(e)
-                self._fail(step_name, monitor_queue)
+                self._fail(exit_flag, step_name, monitor_queue)
             else:
-                self._suc(step_name, monitor_queue)
+                self._suc(exit_flag, step_name, monitor_queue)
 
     @abstractmethod
     def _run(self, param, exit_flag):
         pass
 
     @staticmethod
-    def _fail(step_name, monitor_queue):
-        msg = {'res': 'f', 'step': step_name,
-               'type': 'c'}
-        monitor_queue.put(msg)
+    def _fail(exit_flag, step_name, monitor_queue):
+        try:
+            msg = {'res': 'f', 'step': step_name,
+                   'type': 'c'}
+            monitor_queue.put(msg)
+        except Exception as e:
+            exit_flag.value = 1
+            Logger().error_logger.exception(e)
 
     @staticmethod
-    def _suc(step_name, monitor_queue):
-        msg = {'res': 's', 'step': step_name,
-               'type': 'c'}
-        monitor_queue.put(msg)
+    def _suc(exit_flag, step_name, monitor_queue):
+        try:
+            msg = {'res': 's', 'step': step_name,
+                   'type': 'c'}
+            monitor_queue.put(msg)
+        except Exception as e:
+            exit_flag.value = 1
+            Logger().error_logger.exception(e)
 
     @staticmethod
     def _produce(item, step_name,

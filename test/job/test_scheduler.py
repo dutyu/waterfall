@@ -52,7 +52,7 @@ if __name__ == "__main__":
     runner1 = TestRunner()
     runner2 = TestRunner2()
     first_step = FirstStep(runner1, 'thread', 10, 10)
-    second_step = Step(runner2, 'process', 8, 20)
+    second_step = Step(runner2, 'thread', 8, 20)
     third_step = Step(runner1, 'thread', 100, 4000)
     first_step.set_next_step(second_step).set_next_step(third_step)
     test_job = TestJob(uuid.uuid1(), 'job1',

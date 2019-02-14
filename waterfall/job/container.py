@@ -12,7 +12,7 @@ from multiprocessing.managers import BaseProxy
 from multiprocessing.pool import Pool, ThreadPool
 
 from waterfall.job.job import Step
-from waterfall.logger import monitor
+from waterfall.logger import monitor, Logger
 from waterfall.utils.validate import validate
 
 
@@ -29,12 +29,15 @@ class Container(threading.Thread):
         self._monitor_queue = monitor_queue
         self._exit_flag = exit_flag
 
-    @monitor
+    # @monitor
     def run(self):
         pool = self._get_pool()
         while True:
             if self._exit_flag.value:
-                pool.terminate()
+                try:
+                    pool.terminate()
+                except Exception as e:
+                    Logger().error_logger.exception(e)
                 return
             if self._step.get_almost_done():
                 self._run(pool)
