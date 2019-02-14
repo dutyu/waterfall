@@ -7,7 +7,7 @@ Author: dutyu
 Date: 2019/02/11 18:21:35
 Brief: queue
 """
-import queue
+from multiprocessing import Manager
 from multiprocessing.managers import BaseManager
 
 from waterfall.config.config import Config
@@ -76,4 +76,4 @@ class QueueFactory(object):
 
 
 def _queue_producer_func():
-    return queue.Queue(10000)
+    return Manager().Queue(10000)
