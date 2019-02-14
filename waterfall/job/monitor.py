@@ -148,7 +148,6 @@ class JobMonitor(threading.Thread):
                     step_info['err_cnt'] += 1
                 else:
                     step_info['suc_cnt'] += 1
-            self._queue.task_done()
             c_cnt += 1
             if c_cnt >= 1000:
                 self._check_job_state()

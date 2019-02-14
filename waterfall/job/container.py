@@ -60,7 +60,6 @@ class Container(threading.Thread):
                               self._monitor_queue,
                               self._res_queue,
                               self._exit_flag))
-            self._input_queue.task_done()
 
     def _get_pool(self):
         parallelism = self._step.get_parallelism()
