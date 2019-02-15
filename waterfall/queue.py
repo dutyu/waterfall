@@ -25,6 +25,7 @@ class QueueFactory(object):
         self._config = config
         self._manager_cls = self.QueueManager
         self._managers = {}
+        self._queues = {}
 
     def register_queues(self, job, port=5000):
         validate(job, Job)
@@ -49,7 +50,10 @@ class QueueFactory(object):
         job_id = str(job.get_id()).replace('-', '')
         step_seq_no = str(step.get_seq_no())
         input_func_str = 'input' + job_id + '_' + step_seq_no
-        return self._get_queue(job_id, input_func_str, ip, port)
+        if self._queues.get(input_func_str) is None:
+            queue = self._get_queue(job_id, input_func_str, ip, port)
+            self._queues[input_func_str] = queue
+        return self._queues.get(input_func_str)
 
     def get_res_queue(self, job, step, ip='', port=5000):
         validate(step, Step)
@@ -63,7 +67,10 @@ class QueueFactory(object):
         validate(job, Job)
         job_id = str(job.get_id()).replace('-', '')
         monitor_func_str = 'monitor' + job_id
-        return self._get_queue(job_id, monitor_func_str, ip, port)
+        if self._queues.get(monitor_func_str) is None:
+            queue = self._get_queue(job_id, monitor_func_str, ip, port)
+            self._queues[monitor_func_str] = queue
+        return self._queues.get(monitor_func_str)
 
     def _get_queue(self, job_id, func_str, ip='', port=5000):
         if ip == '':

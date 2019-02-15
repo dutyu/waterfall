@@ -152,6 +152,7 @@ class Runnable(object):
             res_queue, exit_flag):
         validate(step_name, str)
         validate(monitor_queue, BaseProxy)
+        validate(res_queue, BaseProxy, None)
         if exit_flag.value:
             Logger().info_logger \
                 .warn('receive an exit signal, return now !')

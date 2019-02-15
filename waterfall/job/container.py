@@ -29,7 +29,7 @@ class Container(threading.Thread):
         self._monitor_queue = monitor_queue
         self._exit_flag = exit_flag
 
-    # @monitor
+    @monitor
     def run(self):
         pool = self._get_pool()
         while True:

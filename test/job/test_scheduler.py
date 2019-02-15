@@ -11,7 +11,7 @@ class TestRunner(Runnable):
     def _run(self, params, exit_flag):
         if exit_flag.value:
             return
-        print("params : " + str(params))
+        # print("params : " + str(params))
         time.sleep(0.01)
         # raise RuntimeError('test')
         print("run finish !")
