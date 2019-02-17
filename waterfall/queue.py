@@ -15,6 +15,8 @@ from waterfall.job.job import Job, Step
 from waterfall.utils.decorators import singleton
 from waterfall.utils.validate import validate
 
+__all__ = ["QueueFactory"]
+
 
 @singleton
 class QueueFactory(object):

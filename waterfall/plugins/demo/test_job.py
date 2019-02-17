@@ -1,12 +1,21 @@
+#!/usr/bin/env python
+# -*- coding: utf-8 -*-
+
+"""
+File: test_job.py
+Author: dutyu
+Date: 2019/01/26 22:12:42
+Brief: test_job
+"""
 import random
+
 import time
-import uuid
 
-from waterfall.config.config import Config
-from waterfall.job.scheduler import JobScheduler
-from waterfall.job.job import Job, FirstStep, Step, Runnable
+from waterfall.job.job import Runnable, Job
+from waterfall.utils.decorators import job, step
 
 
+@step('test_job')
 class TestRunner(Runnable):
     def _run(self, params, exit_flag):
         if exit_flag.value:
@@ -18,6 +27,7 @@ class TestRunner(Runnable):
         return (i for i in range(0, 100))
 
 
+@step('test_job')
 class TestRunner2(Runnable):
     def _run(self, params, exit_flag):
         if exit_flag.value:
@@ -33,6 +43,7 @@ class TestRunner2(Runnable):
         return res
 
 
+@job('test_job')
 class TestJob(Job):
     @staticmethod
     def _generator(res):
@@ -43,22 +54,3 @@ class TestJob(Job):
 
     def stimulate(self):
         return self._generator(random.random())
-
-
-if __name__ == "__main__":
-    start_time = time.time()
-    scheduler = JobScheduler(
-        Config().merge_from_dict({"test": 1, "test2": 2}))
-    runner1 = TestRunner()
-    runner2 = TestRunner2()
-    first_step = FirstStep(runner1, 'thread', 10, 10)
-    second_step = Step(runner2, 'thread', 8, 20)
-    third_step = Step(runner1, 'thread', 100, 4000)
-    first_step.set_next_step(second_step).set_next_step(third_step)
-    test_job = TestJob(uuid.uuid1(), 'job1',
-                       Config().merge_from_dict(
-                           {"test2": 2, "test3": 3}), first_step)
-    scheduler.add_job(test_job)
-    scheduler.set_ready().start()
-    scheduler.close()
-    print('cost time: {:.2f}'.format(time.time() - start_time))

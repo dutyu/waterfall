@@ -2,7 +2,7 @@
 # -*- coding: utf-8 -*-
 
 """
-File: config.py
+File: job.py
 Author: dutyu
 Date: 2019/01/26 22:12:42
 Brief: job
@@ -74,7 +74,6 @@ class Step(object):
         self._done = False
         self._init_func = None
 
-    @synchronized
     def set_next_step(self, next_step):
         validate(next_step, Step)
         self._next_step = weakref.proxy(next_step)
@@ -90,7 +89,6 @@ class Step(object):
     def get_pool_type(self):
         return self._pool_type
 
-    @synchronized
     def get_next_step(self):
         return self._next_step
 
@@ -113,11 +111,9 @@ class Step(object):
     def set_done(self):
         self._done = True
 
-    @synchronized
     def get_name(self):
         return 'step' + str(self._seq_no)
 
-    @synchronized
     def get_seq_no(self):
         return self._seq_no
 
@@ -138,11 +134,9 @@ class FirstStep(Step):
         self._seq_no = 1
         self._task_cnt = 0
 
-    @synchronized
     def get_task_cnt(self):
         return self._task_cnt
 
-    @synchronized
     def set_task_cnt(self, task_cnt):
         self._task_cnt = task_cnt
 

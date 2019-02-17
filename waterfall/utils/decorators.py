@@ -9,6 +9,13 @@ Brief: decorators
 import threading
 import functools
 
+from waterfall.config.config import Config
+from waterfall.job.job import Job, Runnable
+from waterfall.utils.validate import validate
+
+
+__all__ = ["synchronized", "singleton", "job", "step", "custom_jobs"]
+
 
 def synchronized(func):
     """ 同步装饰器"""
@@ -43,3 +50,26 @@ def singleton(cls):
     cls.__init__ = object.__init__
 
     return cls
+
+
+custom_jobs = {}
+
+
+def job(job_name, config=Config()):
+    """ 自定义job装饰器"""
+
+    validate(job_name, str)
+
+    def wrapper(cls):
+        validate(cls, Job)
+        pass
+
+
+def step(job_name, config=Config()):
+    """ 自定义step装饰器"""
+
+    validate(job_name, str)
+
+    def wrapper(cls):
+        validate(cls, Runnable)
+        pass
