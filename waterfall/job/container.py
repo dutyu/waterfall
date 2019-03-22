@@ -11,18 +11,21 @@ import threading
 from multiprocessing.managers import BaseProxy
 from multiprocessing.pool import Pool, ThreadPool
 
+from waterfall.config.config import Config
 from waterfall.job.job import Step
 from waterfall.logger import monitor, Logger
 from waterfall.utils.validate import validate
 
 
 class Container(threading.Thread):
-    def __init__(self, step, input_queue, res_queue,
+    def __init__(self, step, config, input_queue, res_queue,
                  monitor_queue, exit_flag):
         validate(step, Step)
+        validate(config, Config)
         validate(input_queue, BaseProxy)
         validate(res_queue, BaseProxy, None)
         threading.Thread.__init__(self)
+        self._config = config
         self._step = step
         self._input_queue = input_queue
         self._res_queue = res_queue
@@ -56,7 +59,8 @@ class Container(threading.Thread):
                 not self._exit_flag.value:
             msg = self._input_queue.get()
             pool.apply_async(self._step.get_runner().run,
-                             (self._step.get_name(), msg,
+                             (self._step.get_name(),
+                              self._config, msg,
                               self._monitor_queue,
                               self._res_queue,
                               self._exit_flag))

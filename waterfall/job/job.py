@@ -142,9 +142,10 @@ class FirstStep(Step):
 
 
 class Runnable(object):
-    def run(self, step_name, param, monitor_queue,
+    def run(self, step_name, config, param, monitor_queue,
             res_queue, exit_flag):
         validate(step_name, str)
+        validate(config, Config)
         validate(monitor_queue, BaseProxy)
         validate(res_queue, BaseProxy, None)
         if exit_flag.value:
@@ -152,7 +153,7 @@ class Runnable(object):
                 .warn('receive an exit signal, return now !')
             return
         try:
-            res = self._run(param, exit_flag)
+            res = self._run(config, param, exit_flag)
         except Exception as e:
             Logger().error_logger.exception(e)
             self._fail(exit_flag, step_name, monitor_queue)
@@ -171,7 +172,7 @@ class Runnable(object):
                 self._suc(exit_flag, step_name, monitor_queue)
 
     @abstractmethod
-    def _run(self, param, exit_flag):
+    def _run(self, config, param, exit_flag):
         pass
 
     @staticmethod

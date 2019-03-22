@@ -8,10 +8,11 @@ from waterfall.job.job import Job, FirstStep, Step, Runnable
 
 
 class TestRunner(Runnable):
-    def _run(self, params, exit_flag):
+    def _run(self, config, params, exit_flag):
         if exit_flag.value:
             return
         # print("params : " + str(params))
+        print("config : " + str(config))
         time.sleep(0.01)
         # raise RuntimeError('test')
         print("run finish !")
@@ -19,10 +20,11 @@ class TestRunner(Runnable):
 
 
 class TestRunner2(Runnable):
-    def _run(self, params, exit_flag):
+    def _run(self, config, params, exit_flag):
         if exit_flag.value:
             return
         print("params : " + str(params))
+        print("config : " + str(config))
         j = 0
         res = random.random()
         while j < 100000:

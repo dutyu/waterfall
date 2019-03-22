@@ -101,7 +101,7 @@ class JobScheduler(object):
                     input_queue = res_queue
                 res_queue = self._queue_factory \
                     .get_res_queue(job, step)
-                container = Container(step, input_queue,
+                container = Container(step, job.get_config(), input_queue,
                                       res_queue, monitor_queue,
                                       self._exit_flag)
                 container.start()
