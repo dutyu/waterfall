@@ -29,6 +29,10 @@ class Job(object):
         self._config = config
         self._first_step = first_step
 
+    def set_config(self, config):
+        validate(config, Config)
+        self._config = config
+
     def get_config(self):
         return self._config
 

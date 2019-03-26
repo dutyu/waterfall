@@ -2,7 +2,7 @@
 # -*- coding: utf-8 -*-
 
 """
-File: test_job.py
+File: demo_job.py
 Author: dutyu
 Date: 2019/01/26 22:12:42
 Brief: test_job
@@ -11,6 +11,7 @@ import random
 
 import time
 
+from waterfall.config.config import Config
 from waterfall.utils.decorators import job, step
 
 
@@ -40,11 +41,12 @@ def run(params, exit_flag):
     return res
 
 
-@job('test_job')
+@job('test_job', config=Config().merge_from_dict({"key1": "val1", "key2": "val2"}))
 def stimulate():
     def _generator(res):
         i = 0
         while i < (2 ** 12):
             yield res
             i += 1
+
     return _generator(random.random())
