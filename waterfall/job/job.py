@@ -15,7 +15,7 @@ from typing import Iterator
 
 from waterfall.config.config import Config
 from waterfall.logger import Logger
-from waterfall.utils.decorators import synchronized
+from waterfall.utils.singleton import synchronized
 from waterfall.utils.validate import validate, validate2
 
 

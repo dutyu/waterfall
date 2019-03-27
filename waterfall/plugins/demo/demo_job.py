@@ -12,7 +12,7 @@ import random
 import time
 
 from waterfall.config.config import Config
-from waterfall.utils.decorators import job, step
+from waterfall.utils.singleton import job, step
 
 
 @step('test_job')

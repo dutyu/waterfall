@@ -14,7 +14,7 @@ import time
 
 from waterfall.utils import fs
 from waterfall.utils.const import const
-from waterfall.utils.decorators import singleton
+from waterfall.utils.singleton import singleton
 
 
 @singleton

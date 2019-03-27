@@ -12,7 +12,7 @@ from multiprocessing.managers import BaseManager
 
 from waterfall.config.config import Config
 from waterfall.job.job import Job, Step
-from waterfall.utils.decorators import singleton
+from waterfall.utils.singleton import singleton
 from waterfall.utils.validate import validate
 
 __all__ = ["QueueFactory"]

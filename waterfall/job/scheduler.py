@@ -17,7 +17,7 @@ from waterfall.job.job import Job, FirstStep
 from waterfall.job.monitor import JobMonitor
 from waterfall.logger import Logger
 from waterfall.queue import QueueFactory
-from waterfall.utils.decorators import singleton
+from waterfall.utils.singleton import singleton
 from waterfall.utils.validate import validate, at_most
 
 

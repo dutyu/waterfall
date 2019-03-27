@@ -9,7 +9,7 @@ Brief: fs
 import os
 import platform
 
-from waterfall.utils.decorators import singleton
+from waterfall.utils.singleton import singleton
 
 __all__ = ["path"]
 
