@@ -7,7 +7,6 @@ Author: dutyu
 Date: 2019/01/26 22:12:42
 Brief: job
 """
-import weakref
 from abc import abstractmethod
 from multiprocessing.managers import BaseProxy
 from types import FunctionType
@@ -49,6 +48,11 @@ class Job(object):
     def stimulate(self):
         pass
 
+    @staticmethod
+    @abstractmethod
+    def build():
+        pass
+
     def validate(self, job_state):
         for step_name in job_state.keys():
             step_info = job_state[step_name]
@@ -80,7 +84,7 @@ class Step(object):
 
     def set_next_step(self, next_step):
         validate(next_step, Step)
-        self._next_step = weakref.proxy(next_step)
+        self._next_step = next_step
         self._next_step._seq_no = self._seq_no + 1
         return self._next_step
 

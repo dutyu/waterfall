@@ -74,7 +74,7 @@ class JobScheduler(object):
                    self._config)
 
         for job in self._job_list:
-            self._queue_factory.register_queues(job)
+            self._queue_factory.register_job_queues(job)
             job_monitor = JobMonitor(self._config)
             monitor_queue = self._queue_factory \
                 .get_monitor_queue(job)

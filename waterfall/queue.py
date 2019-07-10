@@ -27,9 +27,21 @@ class QueueFactory(object):
         self._config = config
         self._manager_cls = self.QueueManager
         self._managers = {}
+        self._scheduler_manager = None
         self._queues = {}
 
-    def register_queues(self, job, port=5000):
+    def register_scheduler_queue(self, port=5000):
+        self._manager_cls.register('get_scheduler_queue',
+                                   callable=_queue_producer_func)
+        manager = self._manager_cls(address=('127.0.0.1', port))
+        manager.start()
+        self._scheduler_manager = manager
+
+    def get_scheduler_queue(self):
+        func = getattr(self._scheduler_manager, 'get_scheduler_queue')
+        return func()
+
+    def register_job_queues(self, job, port=5000):
         validate(job, Job)
         job_id = str(job.get_id()).replace('-', '')
         monitor_func_str = 'monitor' + job_id
