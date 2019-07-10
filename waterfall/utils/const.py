@@ -16,7 +16,7 @@ class Const(object):
 
     CONF_PATH = fs.path.join(ROOT_PATH, 'conf')
 
-    LOG_PATH = fs.path.join(ROOT_PATH, 'logs')
+    # LOG_PATH = fs.path.join(ROOT_PATH, 'logs')
 
     TEMP_PATH = fs.path.join(ROOT_PATH, 'temp')
 

@@ -10,7 +10,6 @@ Brief: config
 import copy
 import json
 
-from waterfall.logger import Logger
 from waterfall.utils import http
 from waterfall.utils.validate import validate
 
@@ -53,11 +52,7 @@ class Config(object):
         return self
 
     def merge_from_json(self, json_str, overwrite=True):
-        try:
-            _dict = json.loads(json_str)
-        except Exception as e:
-            Logger().error_logger.exception(e)
-            return self
+        _dict = json.loads(json_str)
         return self.merge_from_dict(_dict, overwrite)
 
     def merge_from_http(self, url, overwrite=True):

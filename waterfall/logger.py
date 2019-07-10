@@ -12,6 +12,7 @@ import logging
 import logging.config
 import time
 
+from waterfall.config.global_config import global_config
 from waterfall.utils import fs
 from waterfall.utils.const import const
 from waterfall.utils.singleton import singleton
@@ -23,7 +24,7 @@ class Logger(object):
         self._conf_file = fs.path.join(const.ROOT_PATH,
                                        'conf/logger.conf')
         logging.config.fileConfig(self._conf_file,
-                                  defaults={'log_path': const.LOG_PATH})
+                                  defaults={'log_path': global_config.LOG_PATH})
         self._debug_logger = logging.getLogger('debugLogger')
         self._info_logger = logging.getLogger('infoLogger')
         self._error_logger = logging.getLogger('errorLogger')

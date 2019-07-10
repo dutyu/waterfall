@@ -1,11 +1,13 @@
 import time
 
+from examples.simple_demo.demo_job import TestJob
 from waterfall.config.config import Config
+from waterfall.config.global_config import GlobalConfig
 from waterfall.job.scheduler import JobScheduler
-from waterfall.plugins.demo.demo_job import TestJob
 
 if __name__ == "__main__":
     start_time = time.time()
+    GlobalConfig.set_log_path("./")
     scheduler = JobScheduler(
         Config().merge_from_dict({"test": 1, "test2": 2}))
     scheduler.add_job(TestJob.build())
