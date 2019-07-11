@@ -23,7 +23,7 @@ from waterfall.utils.singleton import singleton
 class Logger(object):
     def __init__(self):
         self._conf_file = fs.path.join(const.ROOT_PATH,
-                                       'conf/logger.conf')
+                                       'logger.conf')
         logging.config.fileConfig(self._conf_file,
                                   defaults={'log_path': global_config.LOG_PATH,
                                             'seq': datetime.datetime.now().strftime('%Y-%m-%d+%H-%M-%S')})

@@ -12,7 +12,7 @@ URL = 'https://github.com/dutyu/waterfall'
 EMAIL = 'dut.xiangyu@gmail.com'
 AUTHOR = 'dutyu'
 REQUIRES_PYTHON = '>=3.6.0'
-VERSION = '0.1.1'
+VERSION = '0.1.3'
 
 REQUIRED = [
     'requests',
@@ -88,9 +88,7 @@ setup(
     author_email=EMAIL,
     python_requires=REQUIRES_PYTHON,
     url=URL,
-    packages=find_packages(exclude=('tests',)),
-    # If your package is a single module, use this instead of 'packages':
-    # py_modules=['mypackage'],
+    packages=find_packages(exclude=('test', 'examples')),
     install_requires=REQUIRED,
     extras_require=EXTRAS,
     include_package_data=True,

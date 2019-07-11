@@ -12,11 +12,7 @@ __all__ = ["const"]
 
 
 class Const(object):
-    ROOT_PATH = fs.path.dirname(fs.path.dirname(fs.path.dirname(__file__)))
-
-    CONF_PATH = fs.path.join(ROOT_PATH, 'conf')
-
-    TEMP_PATH = fs.path.join(ROOT_PATH, 'temp')
+    ROOT_PATH = fs.path.dirname(fs.path.dirname(__file__))
 
 
 const = Const
