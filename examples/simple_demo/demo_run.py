@@ -1,3 +1,5 @@
+#!/usr/bin/env python
+# -*- coding: utf-8 -*-
 import time
 
 from examples.simple_demo.demo_job import TestJob
