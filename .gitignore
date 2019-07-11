@@ -107,3 +107,4 @@ venv.bak/
 # customer
 temp/*
 waterfall.egg-info/*
+dist/*
