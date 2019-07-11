@@ -12,7 +12,7 @@ URL = 'https://github.com/dutyu/waterfall'
 EMAIL = 'dut.xiangyu@gmail.com'
 AUTHOR = 'dutyu'
 REQUIRES_PYTHON = '>=3.6.0'
-VERSION = '0.1.0-SNAPSHOT'
+VERSION = '0.1.0'
 
 REQUIRED = [
     'requests', 'Crypto',
