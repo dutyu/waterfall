@@ -11,6 +11,7 @@ import json
 import logging
 import logging.config
 import time
+import datetime
 
 from waterfall.config.global_config import global_config
 from waterfall.utils import fs
@@ -24,7 +25,8 @@ class Logger(object):
         self._conf_file = fs.path.join(const.ROOT_PATH,
                                        'conf/logger.conf')
         logging.config.fileConfig(self._conf_file,
-                                  defaults={'log_path': global_config.LOG_PATH})
+                                  defaults={'log_path': global_config.LOG_PATH,
+                                            'seq': datetime.datetime.now().strftime('%Y-%m-%d+%H-%M-%S')})
         self._debug_logger = logging.getLogger('debugLogger')
         self._info_logger = logging.getLogger('infoLogger')
         self._error_logger = logging.getLogger('errorLogger')
