@@ -13,7 +13,7 @@ import logging.config
 import time
 import datetime
 
-from waterfall.config.global_config import global_config
+from waterfall.config.global_config import global_config, GlobalConfig
 from waterfall.utils import fs
 from waterfall.utils.const import const
 from waterfall.utils.singleton import singleton
@@ -28,6 +28,8 @@ class Logger(object):
                                   defaults={'log_path': global_config.LOG_PATH,
                                             'seq': datetime.datetime.now().strftime('%Y-%m-%d+%H-%M-%S')})
         self._debug_logger = logging.getLogger('debugLogger')
+        if not GlobalConfig.ENABLE_DEBUG:
+            self._debug_logger.level = logging.CRITICAL
         self._info_logger = logging.getLogger('infoLogger')
         self._error_logger = logging.getLogger('errorLogger')
         self._monitor_logger = logging.getLogger('monitorLogger')

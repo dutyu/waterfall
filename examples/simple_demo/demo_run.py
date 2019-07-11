@@ -11,6 +11,7 @@ if __name__ == "__main__":
     start_time = time.time()
     # 设置日志路径
     GlobalConfig.set_log_path("./logs/")
+    GlobalConfig.enable_debug_log()
 
     scheduler = JobScheduler(
         Config().merge_from_dict({"test": 1, "test2": 2}))

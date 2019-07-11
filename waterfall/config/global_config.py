@@ -17,7 +17,12 @@ __all__ = ["global_config"]
 
 class GlobalConfig(object):
     DEFAULT_LOG_PATH = fs.path.dirname(os.environ['HOME'])
+
     LOG_PATH = DEFAULT_LOG_PATH
+
+    PROGRESS_PERSISTENCE = False
+
+    ENABLE_DEBUG = False
 
     @staticmethod
     def set_log_path(log_path):
@@ -28,6 +33,14 @@ class GlobalConfig(object):
         if log_path != GlobalConfig.DEFAULT_LOG_PATH \
                 and GlobalConfig.LOG_PATH == GlobalConfig.DEFAULT_LOG_PATH:
             GlobalConfig.LOG_PATH = fs.path.dirname(log_path)
+
+    @staticmethod
+    def enable_debug_log():
+        GlobalConfig.ENABLE_DEBUG = True
+
+    @staticmethod
+    def set_progress_persistence():
+        GlobalConfig.PROGRESS_PERSISTENCE = True
 
 
 global_config = GlobalConfig

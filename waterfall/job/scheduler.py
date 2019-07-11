@@ -87,8 +87,8 @@ class JobScheduler(object):
                 if isinstance(step, FirstStep):
                     input_data = job.stimulate()
                     at_most(2 ** 20, input_data,
-                            'the return value of the job\'s '
-                            'stimulate method is too large !')
+                            'the return size of the job\'s '
+                            'stimulate method must be smaller then 1048576 !')
                     input_queue = self._queue_factory \
                         .get_input_queue(job, step)
                     if isinstance(input_data, Iterator):
