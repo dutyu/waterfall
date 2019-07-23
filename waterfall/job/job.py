@@ -13,7 +13,7 @@ from types import FunctionType
 from typing import Iterator
 
 from waterfall.config.config import Config
-from waterfall.logger import Logger
+from waterfall.logger import Logger, monitor
 from waterfall.utils.singleton import synchronized
 from waterfall.utils.validate import validate, validate2
 
@@ -150,6 +150,7 @@ class FirstStep(Step):
 
 
 class Runnable(object):
+    @monitor
     def run(self, step_name, config, param, monitor_queue,
             res_queue, exit_flag):
         validate(step_name, str)

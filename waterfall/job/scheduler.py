@@ -9,7 +9,7 @@ Brief: scheduler
 """
 import sys
 from multiprocessing import Manager
-from typing import Iterator
+from typing import Iterator, Iterable
 
 from waterfall.config.config import Config
 from waterfall.job.container import Container
@@ -56,6 +56,7 @@ class JobScheduler(object):
     def close(self):
         self._join()
         self._state = 'closed'
+        self._queue_factory.shutdown()
         sys.exit(self._exit_flag.value)
 
     def _join(self):
@@ -86,6 +87,7 @@ class JobScheduler(object):
             while step:
                 if isinstance(step, FirstStep):
                     input_data = job.stimulate()
+                    validate(input_data, Iterable)
                     at_most(2 ** 20, input_data,
                             'the return size of the job\'s '
                             'stimulate method must be smaller then 1048576 !')
