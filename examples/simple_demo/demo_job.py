@@ -35,7 +35,7 @@ class TestRunner2(Runnable):
         print("config : " + str(config))
         j = 0
         res = random.random()
-        while j < 100000:
+        while j < 10:
             res = (2 * 21 ** 3 / 3.231 + 2 ** 4 / 3211.23231
                    - 342342 * 32 + random.random()) % random.random()
             j += 1
@@ -50,7 +50,7 @@ class TestJob(Job):
         runner2 = TestRunner2()
         first_step = FirstStep(runner1, 'thread', 10, 10)
         second_step = Step(runner2, 'thread', 8, 20)
-        third_step = Step(runner1, 'thread', 100, 4000)
+        third_step = Step(runner1, 'thread', 10, 4000)
         first_step.set_next_step(second_step).set_next_step(third_step)
         return TestJob(uuid.uuid1(), 'job1',
                        Config().merge_from_dict(
@@ -59,7 +59,7 @@ class TestJob(Job):
     @staticmethod
     def _generator(res):
         i = 0
-        while i < (2 ** 12):
+        while i < (2 ** 2):
             yield res
             i += 1
 

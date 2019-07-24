@@ -31,12 +31,12 @@ class QueueFactory(object):
         self._managers = {}
         self._scheduler_manager = None
         self._queues = {}
-        self._port = random.randint(5000, 6000)
+        self._port = random.randint(5000, 10000)
 
-    def register_scheduler_queue(self, port=5011):
+    def register_scheduler_queue(self):
         self._manager_cls.register('get_scheduler_queue',
                                    callable=_queue_producer_func)
-        manager = self._manager_cls(address=('127.0.0.1', port))
+        manager = self._manager_cls(address=('127.0.0.1', self._port))
         manager.start()
         self._scheduler_manager = manager
 
@@ -101,7 +101,9 @@ class QueueFactory(object):
     def shutdown(self):
         try:
             for manager_id in self._managers:
-                self._managers[manager_id].join(timeout=1)
+                self._managers[manager_id].shutdown()
+                Logger().debug_logger.debug("shutdown manager process,"
+                                            " manager_id: {%s}", manager_id)
         except Exception as e:
             Logger().error_logger.exception(e)
 
