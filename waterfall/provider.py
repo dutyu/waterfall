@@ -41,7 +41,7 @@ def _python_exit():
             e.set()
         t.join()
 
-_DEFAULT_MAX_QUEUE_SIZE = 100
+_DEFAULT_MAX_QUEUE_SIZE = 1000
 
 
 class ProcessPoolProvider(object):
