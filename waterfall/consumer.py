@@ -17,8 +17,8 @@ from typing import List, Type, Dict
 
 from kazoo.client import KazooClient
 
-from _base import *
-from _queue import RemoteSimpleQueue, RemoteQueue
+from waterfall._base import *
+from waterfall._queue import RemoteSimpleQueue, RemoteQueue
 
 _thread_queues = weakref.WeakKeyDictionary()
 _zk_threads = weakref.WeakKeyDictionary()

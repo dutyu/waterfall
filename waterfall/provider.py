@@ -13,8 +13,8 @@ from typing import Type
 from kazoo.client import KazooClient
 from kazoo.exceptions import NodeExistsError
 from kazoo.protocol.states import KazooState
-from _base import *
-from _queue import RemoteQueue, RemoteSimpleQueue
+from waterfall._base import *
+from waterfall._queue import RemoteQueue, RemoteSimpleQueue
 
 _processes_call_queue = weakref.WeakKeyDictionary()
 _zk_threads = weakref.WeakKeyDictionary()
