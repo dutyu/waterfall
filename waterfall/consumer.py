@@ -9,16 +9,20 @@ import atexit
 import multiprocessing
 import pickle
 import random
+import threading
+import traceback
 import uuid
+import time
 import weakref
 from concurrent.futures import Future
 from multiprocessing.connection import wait
 from queue import Full
-from typing import List, Dict
+from typing import List, Dict, Any
 
 from waterfall.registration import RegistrationCenter
-from waterfall._base import *
-from waterfall._queue import RemoteSimpleQueue, RemoteQueue
+from waterfall import _util
+from waterfall import _base
+from waterfall import _queue
 
 _thread_queues = weakref.WeakKeyDictionary()
 _zk_threads = weakref.WeakKeyDictionary()
@@ -41,7 +45,7 @@ def _python_exit():
 
 class Consumer(object):
     def __init__(self, zk_hosts: str, *,
-                 port=CONSUMER_PORT):
+                 port=_base.CONSUMER_PORT):
         self._pending_work_items_lock = threading.Lock()
         self._shutdown_lock = threading.Lock()
         self._queue_management_thread = None
@@ -58,19 +62,19 @@ class Consumer(object):
         self._broken = False
         self._providers = {}
 
-    def get_providers(self, app_name: str) -> List[ProviderItem]:
+    def get_providers(self, app_name: str) -> List[_base.ProviderItem]:
         return self._providers.get(app_name)
 
-    def _router(self, provider_items: List[ProviderItem],
+    def _router(self, provider_items: List[_base.ProviderItem],
                 args: List[Any], kwargs: Dict) -> str:
         pass
 
     def invoke(self, app_name: str, service: str, args: List[Any] = None, kwargs: Dict = None, *,
-               timeout: int = DEFAULT_TIMEOUT_SEC):
+               timeout: int = _base.DEFAULT_TIMEOUT_SEC):
         return self.submit(app_name, service, args, kwargs, timeout=timeout).result()
 
     def submit(self, app_name: str, service: str, args: List[Any] = None, kwargs: Dict = None, *,
-               timeout: int = DEFAULT_TIMEOUT_SEC) -> Future:
+               timeout: int = _base.DEFAULT_TIMEOUT_SEC) -> Future:
 
         # When the executor gets lost, the weakref callback will wake up
         # the queue management thread.
@@ -82,13 +86,13 @@ class Consumer(object):
             f = Future()
 
             if self._broken:
-                raise BrokenRemoteQueue('The process of the queue terminated abruptly.')
+                raise _base.BrokenRemoteQueue('The process of the queue terminated abruptly.')
             if self.shutdown_thread:
                 raise RuntimeError('Cannot schedule new futures after shutdown.')
 
             # Start queue management thread
             if self._queue_management_thread is None:
-                find_providers_latch = CountDownLatch(1)
+                find_providers_latch = _base.CountDownLatch(1)
                 close_event = threading.Event()
 
                 self._registration_center = RegistrationCenter(
@@ -107,8 +111,8 @@ class Consumer(object):
                         'Connect to zk cluster timeout. zk hosts: {zk}'.format(
                             zk=self._zk_hosts)
                     )
-                remote_queue = RemoteSimpleQueue(get_host_ip(),
-                                                 self._result_queue_port)
+                remote_queue = _queue.RemoteSimpleQueue(_util.get_host_ip(),
+                                                        self._result_queue_port)
                 remote_queue.start()
                 self._result_queue = remote_queue.queue
                 self._queue_management_thread = threading.Thread(
@@ -135,7 +139,7 @@ class Consumer(object):
             if not providers:
                 # If executor can not find any provider, just reject the request.
                 f.set_exception(
-                    EmptyProvider('Reject request. Can not find any provider!')
+                    _base.EmptyProvider('Reject request. Can not find any provider!')
                 )
                 return f
 
@@ -143,7 +147,7 @@ class Consumer(object):
             provider_item = providers[random.randint(0, len(providers) - 1)]
 
             if not self._remote_call_queues.get(provider_item.id):
-                remote_call_queue = RemoteQueue(provider_item.ip, provider_item.port)
+                remote_call_queue = _queue.RemoteQueue(provider_item.ip, provider_item.port)
                 try:
                     remote_call_queue.connect()
                     self._remote_call_queues[provider_item.id] = remote_call_queue
@@ -158,7 +162,7 @@ class Consumer(object):
                     )
                     return f
 
-            w = WorkItem(f, app_name, service, args, kwargs, provider_item.id, timeout)
+            w = _base.WorkItem(f, app_name, service, args, kwargs, provider_item.id, timeout)
             with self._pending_work_items_lock:
                 self._pending_work_items[self._work_id] = w
 
@@ -171,7 +175,7 @@ class Consumer(object):
             except Full:
                 # Set exception if call_queue if Full now.
                 w.future.set_exception(
-                    ProviderTooBusy(
+                    _base.ProviderTooBusy(
                         'Provider: {provider} is too busy now.'.format(
                             provider=w.provider_id
                         )
@@ -289,7 +293,7 @@ def _queue_management_worker(executor_reference: Consumer,
             with pending_work_items_lock:
                 for work_id, work_item in pending_work_items.items():
                     work_item.future.set_exception(
-                        BrokenRemoteQueue(
+                        _base.BrokenRemoteQueue(
                             "The process of the RemoteQueue was "
                             "terminated abruptly while the future was "
                             "running or pending."
@@ -324,7 +328,7 @@ def _queue_management_worker(executor_reference: Consumer,
         executor = None
 
 
-def _add_call_item_to_queue(work_item: WorkItem,
+def _add_call_item_to_queue(work_item: _base.WorkItem,
                             work_id: str,
                             port: int,
                             call_queue: multiprocessing.Queue) -> None:
@@ -335,9 +339,9 @@ def _add_call_item_to_queue(work_item: WorkItem,
     """
     retry_times = 0
     if work_item.future.set_running_or_notify_cancel():
-        while retry_times <= DEFAULT_SEND_RETRY_TIMES:
+        while retry_times <= _base.DEFAULT_SEND_RETRY_TIMES:
             try:
-                call_queue.put_nowait(CallItem(work_id,
+                call_queue.put_nowait(_base.CallItem(work_id,
                                       port,
                                       work_item.service,
                                       work_item.args,
@@ -345,7 +349,7 @@ def _add_call_item_to_queue(work_item: WorkItem,
             except:
                 traceback.print_exc()
                 retry_times += 1
-                if retry_times > DEFAULT_SEND_RETRY_TIMES:
+                if retry_times > _base.DEFAULT_SEND_RETRY_TIMES:
                     raise
             else:
                 break

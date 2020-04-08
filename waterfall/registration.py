@@ -5,14 +5,18 @@ File: registration.py
 Author: dutyu
 Date: 2020/04/08 14:37:52
 """
+import os
+import threading
+import traceback
 from types import MappingProxyType
 from typing import Callable, List, Dict
+import time
 
 from kazoo.client import KazooClient
 from kazoo.exceptions import NodeExistsError
 from kazoo.protocol.states import KazooState
 
-from waterfall._base import *
+from waterfall import _base
 
 
 class RegistrationCenter(object):
@@ -22,7 +26,7 @@ class RegistrationCenter(object):
                  port: int,
                  app_name: str,
                  close_event: threading.Event,
-                 init_latch: CountDownLatch
+                 init_latch: _base.CountDownLatch
                  ) -> None:
         self._close_event = close_event
         self._init_latch = init_latch
@@ -37,8 +41,8 @@ class RegistrationCenter(object):
 
     def _register_path(self) -> str:
         return '/'.join(
-            ('', ZK_PATH, self._app_name,
-             ':'.join((IP, str(self._port))))
+            ('', _base.ZK_PATH, self._app_name,
+             ':'.join((_base.IP, str(self._port))))
         )
 
     def _register_service(self, service_name: str,
@@ -48,26 +52,26 @@ class RegistrationCenter(object):
 
     def _find_provider(self,
                        pending_work_items_lock: threading.Lock,
-                       providers: Dict[str, ProviderItem],
+                       providers: Dict[str, _base.ProviderItem],
                        pending_work_items: Dict) -> None:
         # Init zk client.
         connection_retry = {'max_tries': -1, 'max_delay': 1}
         zk = KazooClient(hosts=self._zk_hosts,
                          connection_retry=connection_retry)
         zk.start()
-        zk.ensure_path(ZK_PATH)
-        child_nodes = zk.get_children(ZK_PATH)
+        zk.ensure_path(_base.ZK_PATH)
+        child_nodes = zk.get_children(_base.ZK_PATH)
         init_flag_dict = dict(map(
             lambda child_node: (child_node, True),
             child_nodes)
         )
 
         def _set_provider_listener(app_name: str) -> None:
-            @zk.ChildrenWatch('/'.join(('', ZK_PATH, app_name)))
+            @zk.ChildrenWatch('/'.join(('', _base.ZK_PATH, app_name)))
             def provider_listener(provider_nodes: List[str]) -> None:
                 providers[app_name] = tuple(
                     map(lambda provider_node:
-                        ProviderItem(app_name, *provider_node.split(':')),
+                        _base.ProviderItem(app_name, *provider_node.split(':')),
                         provider_nodes)
                 )
                 # Don't need to execute the below code if the listener be triggered first.
@@ -75,7 +79,7 @@ class RegistrationCenter(object):
                     init_flag_dict[app_name] = False
                     return
                 # Wait for providers to handle the pending work items.
-                time.sleep(DEFAULT_TIMEOUT_SEC + 1)
+                time.sleep(_base.DEFAULT_TIMEOUT_SEC + 1)
                 # Use a filter to find the still remains pending items
                 # and set a OfflineProvider exception.
                 with pending_work_items_lock:
@@ -90,7 +94,7 @@ class RegistrationCenter(object):
                 while remove_work_items:
                     k, item = remove_work_items.pop()
                     item.future.set_exception(
-                        OfflineProvider(
+                        _base.OfflineProvider(
                             'Remote provider is offline, '
                             'provider_id: {provider_id}.'.format(
                                 provider_id=item.provider_id)
@@ -177,8 +181,8 @@ class RegistrationCenter(object):
 
     def start_find_worker_thread(self,
                                  pending_work_items_lock: threading.Lock,
-                                 providers: Dict[str, ProviderItem],
-                                 pending_work_items: Dict[str, WorkItem]) -> threading.Thread:
+                                 providers: Dict[str, _base.ProviderItem],
+                                 pending_work_items: Dict[str, _base.WorkItem]) -> threading.Thread:
         t = threading.Thread(
             target=self._find_provider,
             args=(pending_work_items_lock,

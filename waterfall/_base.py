@@ -7,27 +7,17 @@ Date: 2020/03/25 10:33:31
 """
 import logging
 import os
-import socket
 import threading
 import time
 import traceback
 from threading import Condition
 from typing import Any
 
-# Logger for internal use by the waterfall package.
+from waterfall import _util
+
 logger = logging.getLogger("waterfall")
 
-
-def get_host_ip() -> str:
-    try:
-        s = socket.socket(socket.AF_INET, socket.SOCK_DGRAM)
-        s.connect(('8.8.8.8', 80))
-        ip = s.getsockname()[0]
-    finally:
-        s.close()
-    return ip
-
-IP = get_host_ip()
+IP = _util.get_host_ip()
 PROVIDER_PORT = int(os.getenv('WATERFALL_PROVIDER_PORT', 6666))
 CONSUMER_PORT = int(os.getenv('WATERFALL_CONSUMER_PORT', 7777))
 WATERFALL_ENV = os.getenv('WATERFALL_ENV', 'default')
