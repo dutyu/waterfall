@@ -7,15 +7,15 @@ import sys
 from setuptools import find_packages, setup, Command
 
 NAME = 'waterfall'
-DESCRIPTION = 'A general offline task implementation framework.'
+DESCRIPTION = 'A general python based open source RPC framework.'
 URL = 'https://github.com/dutyu/waterfall'
 EMAIL = 'dut.xiangyu@gmail.com'
 AUTHOR = 'dutyu'
 REQUIRES_PYTHON = '>=3.6.0'
-VERSION = '0.1.3'
+VERSION = '0.2.0'
 
 REQUIRED = [
-    'requests',
+    'kazoo',
 ]
 
 EXTRAS = {
@@ -100,8 +100,7 @@ setup(
         'Programming Language :: Python',
         'Programming Language :: Python :: 3',
         'Programming Language :: Python :: 3.6',
-        'Programming Language :: Python :: Implementation :: CPython',
-        'Programming Language :: Python :: Implementation :: PyPy'
+        'Programming Language :: Python :: Implementation :: CPython'
     ],
     # $ setup.py publish support.
     cmdclass={
