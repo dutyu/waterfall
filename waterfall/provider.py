@@ -9,10 +9,8 @@ import atexit
 import multiprocessing
 import weakref
 from multiprocessing.connection import wait
-from typing import Type
-from kazoo.client import KazooClient
-from kazoo.exceptions import NodeExistsError
-from kazoo.protocol.states import KazooState
+
+from waterfall.registration import RegistrationCenter
 from waterfall._base import *
 from waterfall._queue import RemoteQueue, RemoteSimpleQueue
 
@@ -37,9 +35,7 @@ def _python_exit():
             e.set()
         t.join()
 
-
-_DEFAULT_SEND_RETRY_TIMES = 1
-_DEFAULT_MAX_QUEUE_SIZE = 1
+_DEFAULT_MAX_QUEUE_SIZE = 100
 
 
 class ProcessPoolProvider(object):
@@ -49,6 +45,7 @@ class ProcessPoolProvider(object):
                  port: int = PROVIDER_PORT):
         self._max_q_size = _DEFAULT_MAX_QUEUE_SIZE if max_q_size < 1 else max_q_size
         self._max_workers = os.cpu_count() if max_workers <= 0 else max_workers
+        self._registration_center = None
         self._start_lock = threading.Lock()
         self._call_queue_process = None
         self._register_thread = None
@@ -81,23 +78,20 @@ class ProcessPoolProvider(object):
             register_close_event = threading.Event()
             reconnected_event = threading.Event()
             # Start register thread to register itself to the cluster
-            self._register_thread = threading.Thread(
-                target=_register_worker,
-                args=(self._zk_hosts,
-                      self._app_name,
-                      register_latch,
-                      register_close_event,
-                      reconnected_event,
-                      self._call_queue_port)
-            )
-            self._register_thread.daemon = True
-            self._register_thread.start()
+            self._registration_center = RegistrationCenter(
+                self._zk_hosts,
+                self._call_queue_port,
+                self._app_name,
+                register_close_event,
+                register_latch)
+            self._register_thread = self._registration_center.start_provider_register_thread(
+                reconnected_event)
             # To avoid unneeded create zk node action,
             # put the register_close_event at the former position
             _zk_threads[self._register_thread] = (register_close_event, reconnected_event)
             if not register_latch.await(10):
                 raise TimeoutError(
-                    'Connect to zk cluster timeout. zk hosts: {zk}'.format(
+                    'Connect to zk cluster failed. zk hosts: {zk}'.format(
                         zk=self._zk_hosts)
                 )
             # If any subprocess be killed, stop all sub processes and the parent process
@@ -140,7 +134,7 @@ class ProcessPoolProvider(object):
         p.join()
 
 
-def _process_worker(call_queue: Type["multiprocessing.Queue"]) -> None:
+def _process_worker(call_queue: multiprocessing.Queue) -> None:
     """Evaluates calls from call_queue and places the results in result_queue.
 
     This worker is run in a separate process.
@@ -153,7 +147,7 @@ def _process_worker(call_queue: Type["multiprocessing.Queue"]) -> None:
     remote_result_queues = {}
     retry_times = 0
     while True:
-        retry_times %= _DEFAULT_SEND_RETRY_TIMES
+        retry_times %= DEFAULT_SEND_RETRY_TIMES
         call_item = call_queue.get() if not retry_times else call_item
 
         if call_item is None:
@@ -169,7 +163,6 @@ def _process_worker(call_queue: Type["multiprocessing.Queue"]) -> None:
                 remote_result_queues[q_id] = remote_queue
             except:
                 traceback.print_exc()
-                del remote_queue
                 retry_times += 1
                 continue
         try:
@@ -192,62 +185,5 @@ def _process_worker(call_queue: Type["multiprocessing.Queue"]) -> None:
             except:
                 traceback.print_exc()
                 retry_times += 1
-
-
-def _register_worker(zk_hosts: str,
-                     app_name: str,
-                     register_latch: Type["CountDownLatch"],
-                     close_event: Type["threading.Event"],
-                     reconnected_event: Type["threading.Event"],
-                     port: int) -> None:
-    def _register_path():
-        return '/'.join(
-            ('', ZK_PATH, app_name, ':'.join((IP, str(port))))
-        )
-
-    register_path = _register_path()
-    # Init zk client and register itself
-    connection_retry = {'max_tries': -1, 'max_delay': 1}
-    zk = KazooClient(hosts=zk_hosts,
-                     connection_retry=connection_retry)
-    zk.start()
-    try:
-        zk.create(register_path, b'',
-                  ephemeral=True, makepath=True)
-    except NodeExistsError:
-        pass
-
-    def _listener(state):
-        if state == KazooState.CONNECTED:
-            reconnected_event.set()
-
-    zk.add_listener(_listener)
-    # Finish service registration, notice the main thread
-    register_latch.count_down()
-
-    while reconnected_event.wait():
-        if close_event.is_set():
-            break
-        reconnected_event.clear()
-        try:
-            zk.create(register_path, b'',
-                      ephemeral=True, makepath=True)
-        except NodeExistsError:
-            pass
-    # Close zk client and release resources.
-    zk.state_listeners.clear()
-    try:
-        zk.delete(register_path)
-    except:
-        pass
-    try:
-        zk.stop()
-    except:
-        traceback.print_exc()
-    try:
-        zk.close()
-    except:
-        traceback.print_exc()
-
 
 atexit.register(_python_exit)

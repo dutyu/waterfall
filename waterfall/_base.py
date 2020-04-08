@@ -32,6 +32,8 @@ PROVIDER_PORT = int(os.getenv('WATERFALL_PROVIDER_PORT', 6666))
 CONSUMER_PORT = int(os.getenv('WATERFALL_CONSUMER_PORT', 7777))
 WATERFALL_ENV = os.getenv('WATERFALL_ENV', 'default')
 ZK_PATH = '/'.join(('', 'waterfall', WATERFALL_ENV))
+DEFAULT_SEND_RETRY_TIMES = 3
+DEFAULT_TIMEOUT_SEC = 10
 
 
 class OfflineProvider(Exception):

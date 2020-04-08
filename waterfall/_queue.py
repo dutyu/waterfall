@@ -5,6 +5,7 @@ File: _queue.py
 Author: dutyu
 Date: 2020/04/07 10:48:15
 """
+import multiprocessing
 import pickle
 import socket
 import socketserver
@@ -12,10 +13,8 @@ import time
 from multiprocessing import Process
 from multiprocessing import Queue
 from multiprocessing import SimpleQueue
-from typing import Type, Any, Union
 from queue import Full
-
-# Class to represent state of a RemoteQueue
+from typing import Any, Union
 
 
 class State(object):
@@ -37,7 +36,7 @@ class RemoteSimpleQueue(object):
         self._state = State()
         self._state.value = State.INITIAL
 
-    def _start(self, queue: Type["multiprocessing.SimpleQueue"]) -> None:
+    def _start(self, queue: multiprocessing.SimpleQueue) -> None:
         # Spawn a server process
         assert self._state.value == State.INITIAL
         self.queue = queue

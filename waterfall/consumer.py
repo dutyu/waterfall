@@ -6,6 +6,7 @@ Author: dutyu
 Date: 2020/03/25 10:33:31
 """
 import atexit
+import multiprocessing
 import pickle
 import random
 import uuid
@@ -13,10 +14,9 @@ import weakref
 from concurrent.futures import Future
 from multiprocessing.connection import wait
 from queue import Full
-from typing import List, Type, Dict
+from typing import List, Dict
 
-from kazoo.client import KazooClient
-
+from registration import RegistrationCenter
 from waterfall._base import *
 from waterfall._queue import RemoteSimpleQueue, RemoteQueue
 
@@ -39,9 +39,6 @@ def _python_exit():
         t.join()
 
 
-_DEFAULT_TIMEOUT_SEC = 10
-
-
 class Consumer(object):
     def __init__(self, zk_hosts: str, *,
                  port=CONSUMER_PORT):
@@ -51,6 +48,7 @@ class Consumer(object):
         self._queue_management_thread = None
         self._find_providers_thread = None
         self._timeout_check_thread = None
+        self._registration_center = None
         self._result_queue_port = port
         self._pending_work_items = {}
         self.shutdown_thread = False
@@ -61,16 +59,16 @@ class Consumer(object):
         self._broken = False
         self._providers = {}
 
-    def get_providers(self, app_name: str) -> List[Type["ProviderItem"]]:
+    def get_providers(self, app_name: str) -> List[ProviderItem]:
         with self._fresh_providers_lock:
             return self._providers.get(app_name)
 
-    def _router(self, provider_items: List[Type["ProviderItem"]],
+    def _router(self, provider_items: List[ProviderItem],
                 args: List[Any], kwargs: Dict) -> str:
         pass
 
     def submit(self, app_name: str, service: str, args: List[Any] = None, kwargs: Dict = None, *,
-               timeout: int = _DEFAULT_TIMEOUT_SEC) -> Future:
+               timeout: int = DEFAULT_TIMEOUT_SEC) -> Future:
 
         # When the executor gets lost, the weakref callback will wake up
         # the queue management thread.
@@ -90,18 +88,18 @@ class Consumer(object):
             if self._queue_management_thread is None:
                 find_providers_latch = CountDownLatch(1)
                 close_event = threading.Event()
-                self._find_providers_thread = threading.Thread(
-                    target=_find_providers,
-                    args=(self._zk_hosts,
-                          self._providers,
-                          self._fresh_providers_lock,
-                          self._pending_work_items,
-                          self._pending_work_items_lock,
-                          find_providers_latch,
-                          close_event)
-                )
-                self._find_providers_thread.daemon = True
-                self._find_providers_thread.start()
+
+                self._registration_center = RegistrationCenter(
+                    self._zk_hosts,
+                    self._result_queue_port,
+                    app_name,
+                    close_event,
+                    find_providers_latch)
+                self._find_providers_thread = self._registration_center.start_find_worker_thread(
+                    self._fresh_providers_lock,
+                    self._pending_work_items_lock,
+                    self._providers,
+                    self._pending_work_items)
                 _zk_threads[self._find_providers_thread] = close_event
                 if not find_providers_latch.await(10):
                     raise TimeoutError(
@@ -158,8 +156,6 @@ class Consumer(object):
                         )
                     )
                     return f
-                finally:
-                    del remote_call_queue
 
             w = WorkItem(f, app_name, service, args, kwargs, provider_item.id, timeout)
             with self._pending_work_items_lock:
@@ -181,7 +177,10 @@ class Consumer(object):
                     )
                 )
                 with self._pending_work_items_lock:
-                    del self._pending_work_items[self._work_id]
+                    try:
+                        del self._pending_work_items[self._work_id]
+                    except:
+                        pass
             except:
                 f.set_exception(
                     RuntimeError(
@@ -192,7 +191,10 @@ class Consumer(object):
                     )
                 )
                 with self._pending_work_items_lock:
-                    del self._pending_work_items[self._work_id]
+                    try:
+                        del self._pending_work_items[self._work_id]
+                    except:
+                        pass
             return f
 
     def shutdown(self, wait: bool = True) -> None:
@@ -217,7 +219,7 @@ class Consumer(object):
 
 
 def _timeout_check_worker(pending_work_items: Dict,
-                          pending_work_items_lock: Type["threading.Lock"]) -> None:
+                          pending_work_items_lock: threading.Lock) -> None:
     while not _shutdown:
         with pending_work_items_lock:
             work_items = set(pending_work_items.items())
@@ -235,7 +237,7 @@ def _timeout_check_worker(pending_work_items: Dict,
             elif item.start_ts + item.timeout < time.time() \
                     and not item.future.done():
                 item.future.set_exception(
-                    RuntimeError(
+                    TimeoutError(
                         'Task is timeout, '
                         'start time: {start_time}, '
                         'now: {now}, timeout: {timeout}s.'.format(
@@ -255,11 +257,11 @@ def _timeout_check_worker(pending_work_items: Dict,
         time.sleep(0.01)
 
 
-def _queue_management_worker(executor_reference: Type["Consumer"],
+def _queue_management_worker(executor_reference: Consumer,
                              pending_work_items: Dict,
-                             result_queue: Type["multiprocessing.SimpleQueue"],
-                             queue_process: Type["multiprocessing.Process"],
-                             pending_work_items_lock: Type["threading.Lock"]) -> None:
+                             result_queue: multiprocessing.SimpleQueue,
+                             queue_process: multiprocessing.Process,
+                             pending_work_items_lock: threading.Lock) -> None:
     executor = None
 
     def shutting_down():
@@ -321,95 +323,30 @@ def _queue_management_worker(executor_reference: Type["Consumer"],
         executor = None
 
 
-def _add_call_item_to_queue(work_item: Type["WorkItem"],
+def _add_call_item_to_queue(work_item: WorkItem,
                             work_id: str,
                             port: int,
-                            call_queue: Type["multiprocessing.Queue"]) -> None:
+                            call_queue: multiprocessing.Queue) -> None:
     """Fills call_queue with _WorkItems from pending_work_items.
 
     This function never blocks.
 
     """
+    retry_times = 0
     if work_item.future.set_running_or_notify_cancel():
-        call_queue.put_nowait(CallItem(work_id,
-                                       port,
-                                       work_item.service,
-                                       work_item.args,
-                                       work_item.kwargs))
-
-
-def _find_providers(zk_hosts: str,
-                    providers: Dict,
-                    fresh_providers_lock: Type["threading.Lock"],
-                    pending_work_items: Dict,
-                    pending_work_items_lock: Type["threading.Lock"],
-                    find_providers_latch: Type["CountDownLatch"],
-                    close_event: Type["threading.Event"]) -> None:
-    # Init zk client
-    connection_retry = {'max_tries': -1, 'max_delay': 1}
-    zk = KazooClient(hosts=zk_hosts,
-                     connection_retry=connection_retry)
-    zk.start()
-    zk.ensure_path(ZK_PATH)
-    child_nodes = zk.get_children(ZK_PATH)
-    init_flag_dict = dict(map(
-        lambda child_node: (child_node, True),
-        child_nodes)
-    )
-
-    def _set_provider_listener(app_name: str) -> None:
-        @zk.ChildrenWatch('/'.join(('', ZK_PATH, app_name)))
-        def provider_listener(provider_nodes: List[str]) -> None:
-            with fresh_providers_lock:
-                providers[app_name] = (tuple(
-                    map(lambda work_item:
-                        ProviderItem(app_name, *work_item.split(':')),
-                        provider_nodes)
-                ))
-            # Don't need to execute the below code if the listener be triggered first.
-            if init_flag_dict[app_name]:
-                init_flag_dict[app_name] = False
-                return
-            # Wait for providers to handle the pending work items.
-            time.sleep(_DEFAULT_TIMEOUT_SEC + 1)
-            # Use a filter to find the still remains pending items
-            # and set a OfflineProvider exception.
-            with pending_work_items_lock:
-                remove_work_items = set(
-                    filter(
-                        lambda pair: pair[1].provider_id not in map(
-                            lambda provider: provider.id, providers
-                        ) and not pair[1].future.done(),
-                        pending_work_items.items())
-                )
-            while remove_work_items:
-                k, item = remove_work_items.pop()
-                item.future.set_exception(
-                    OfflineProvider(
-                        'Remote provider is offline, '
-                        'provider_id: {provider_id}.'.format(
-                            provider_id=item.provider_id)
-                    )
-                )
-                with pending_work_items_lock:
-                    del pending_work_items[k]
-
-    # Find all providers and add a watcher when nodes changes.
-    for node in child_nodes:
-        _set_provider_listener(node)
-
-    find_providers_latch.count_down()
-    close_event.wait()
-    # Close zk client and release resources.
-    zk.state_listeners.clear()
-    try:
-        zk.stop()
-    except:
-        traceback.print_exc()
-    try:
-        zk.close()
-    except:
-        traceback.print_exc()
-
+        while retry_times <= DEFAULT_SEND_RETRY_TIMES:
+            try:
+                call_queue.put_nowait(CallItem(work_id,
+                                      port,
+                                      work_item.service,
+                                      work_item.args,
+                                      work_item.kwargs))
+            except:
+                traceback.print_exc()
+                retry_times += 1
+                if retry_times > DEFAULT_SEND_RETRY_TIMES:
+                    raise
+            else:
+                break
 
 atexit.register(_python_exit)
