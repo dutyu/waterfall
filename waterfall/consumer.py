@@ -84,7 +84,7 @@ class Consumer(object):
             if self._broken:
                 raise BrokenQueueManager('The process of the queue terminated abruptly.')
             if self.shutdown_thread:
-                raise RuntimeError('Cannot schedule new futures after shutdown')
+                raise RuntimeError('Cannot schedule new futures after shutdown.')
 
             # Start queue management thread
             if self._queue_management_thread is None:
@@ -372,7 +372,8 @@ def _find_providers(zk_hosts: str,
                 return
             # Wait for providers to handle the pending work items.
             time.sleep(_DEFAULT_TIMEOUT_SEC + 1)
-
+            # Use a filter to find the still remains pending items
+            # and set a OfflineProvider exception.
             with pending_work_items_lock:
                 remove_work_items = set(
                     filter(
@@ -384,7 +385,7 @@ def _find_providers(zk_hosts: str,
             while remove_work_items:
                 k, item = remove_work_items.pop()
                 item.future.set_exception(
-                    RuntimeError(
+                    OfflineProvider(
                         'Remote provider is offline, '
                         'provider_id: {provider_id}.'.format(
                             provider_id=item.provider_id)

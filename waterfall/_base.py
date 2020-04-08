@@ -31,17 +31,21 @@ IP = get_host_ip()
 PROVIDER_PORT = int(os.getenv('WATERFALL_PROVIDER_PORT', 6666))
 CONSUMER_PORT = int(os.getenv('WATERFALL_CONSUMER_PORT', 7777))
 WATERFALL_ENV = os.getenv('WATERFALL_ENV', 'default')
-
 ZK_PATH = '/'.join(('', 'waterfall', WATERFALL_ENV))
 
 
+class OfflineProvider(Exception):
+    """The provider is offline now."""
+    pass
+
+
 class EmptyProvider(Exception):
-    """Cluster doesn't have any worker."""
+    """Cluster doesn't have any provider."""
     pass
 
 
 class BrokenProvider(Exception):
-    """Worker has been broken."""
+    """Provider has been broken."""
     pass
 
 
