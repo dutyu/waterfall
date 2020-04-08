@@ -16,7 +16,7 @@ from multiprocessing.connection import wait
 from queue import Full
 from typing import List, Dict
 
-from registration import RegistrationCenter
+from waterfall.registration import RegistrationCenter
 from waterfall._base import *
 from waterfall._queue import RemoteSimpleQueue, RemoteQueue
 
