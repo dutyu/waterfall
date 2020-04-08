@@ -98,6 +98,12 @@ class ProcessPoolProvider(object):
             sentinels = [p.sentinel for p in self._processes.values()] + \
                         [self._call_queue_process.sentinel, ]
             assert sentinels
+            print('#'*50)
+            print('#'*11 + '   WATERFALL HAS STARTED!   ' + '#'*11)
+            print('#'*11 + '        VERSION 0.2.0       ' + '#'*11)
+            print('#'*11 + '        AUTHOR: dutyu       ' + '#'*11)
+            print('#'*11 + ' MAIL:dut.xiangyu@gmail.com ' + '#'*11)
+            print('#'*50)
             wait(sentinels)
             self._shutdown_worker()
 

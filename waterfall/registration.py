@@ -24,10 +24,13 @@ class RegistrationCenter(object):
                  close_event: threading.Event,
                  init_latch: CountDownLatch
                  ) -> None:
-        self._init_latch = init_latch
         self._close_event = close_event
+        self._init_latch = init_latch
         self._app_name = app_name
         self._zk_hosts = zk_hosts
+        # When python exit hook func be triggered,
+        # provider's process will delete the zk node,
+        # so we need to record the process when create the zk node.
         self._create_pid = None
         self._services = dict()
         self._port = port
@@ -47,7 +50,7 @@ class RegistrationCenter(object):
                        pending_work_items_lock: threading.Lock,
                        providers: Dict[str, ProviderItem],
                        pending_work_items: Dict) -> None:
-        # Init zk client
+        # Init zk client.
         connection_retry = {'max_tries': -1, 'max_delay': 1}
         zk = KazooClient(hosts=self._zk_hosts,
                          connection_retry=connection_retry)
@@ -102,7 +105,8 @@ class RegistrationCenter(object):
         # Find all providers and add a watcher when nodes changes.
         for node in child_nodes:
             _set_provider_listener(node)
-
+        # We have finished the init stage,
+        # so notice the main thread to continue.
         self._init_latch.count_down()
         self._close_event.wait()
         self._close(zk, False)

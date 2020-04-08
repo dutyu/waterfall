@@ -139,7 +139,7 @@ class Consumer(object):
                 )
                 return f
 
-            # TODO 路由,等等实现,先随机路由
+            # TODO
             provider_item = providers[random.randint(0, len(providers) - 1)]
 
             if not self._remote_call_queues.get(provider_item.id):
