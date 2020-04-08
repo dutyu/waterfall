@@ -13,6 +13,8 @@ import traceback
 import weakref
 from multiprocessing.connection import wait
 
+from typing import Dict, Callable
+
 from waterfall.registration import RegistrationCenter
 from waterfall import _util
 from waterfall import _base
@@ -62,7 +64,8 @@ class ProcessPoolProvider(object):
         self._state = 0
         self._zk = None
 
-    def start(self) -> None:
+    def start(self, init_weight: int=100) -> None:
+        init_weight = 100 if init_weight > 100 else init_weight
         with self._start_lock:
             if self._state != 0:
                 return
@@ -75,8 +78,6 @@ class ProcessPoolProvider(object):
             self._call_queue = remote_queue.queue
             self._call_queue._ignore_epipe = True
             self._call_queue_process = remote_queue.process
-            # Start all sub processes
-            self._adjust_process_count()
             # Use a CountDownLatch to wait for worker's registration
             register_latch = _base.CountDownLatch(1)
             register_close_event = threading.Event()
@@ -89,7 +90,8 @@ class ProcessPoolProvider(object):
                 register_close_event,
                 register_latch)
             self._register_thread = self._registration_center.start_provider_register_thread(
-                reconnected_event)
+                reconnected_event,
+                init_weight)
             # To avoid unneeded create zk node action,
             # put the register_close_event at the former position
             _zk_threads[self._register_thread] = (register_close_event, reconnected_event)
@@ -98,6 +100,8 @@ class ProcessPoolProvider(object):
                     'Connect to zk cluster timeout. zk hosts: {zk}'.format(
                         zk=self._zk_hosts)
                 )
+            # Start all sub processes
+            self._adjust_process_count()
             # If any subprocess be killed, stop all sub processes and the parent process
             sentinels = [p.sentinel for p in self._processes.values()] + \
                         [self._call_queue_process.sentinel, ]
@@ -107,6 +111,8 @@ class ProcessPoolProvider(object):
             print('#'*11 + '        VERSION 0.2.0       ' + '#'*11)
             print('#'*11 + '        AUTHOR: dutyu       ' + '#'*11)
             print('#'*11 + ' MAIL:dut.xiangyu@gmail.com ' + '#'*11)
+            print('#'*11 + '       APP: {app_name}       '.format(
+                app_name=self._app_name) + '#'*11)
             print('#'*50)
             wait(sentinels)
             self._shutdown_worker()
@@ -115,7 +121,8 @@ class ProcessPoolProvider(object):
         for i in range(len(self._processes), self._max_workers):
             p = multiprocessing.Process(
                 target=_process_worker,
-                args=(self._call_queue,))
+                args=(self._call_queue,
+                      self._registration_center.get_services()))
             p.start()
             self._processes[p.pid] = p
         _processes_call_queue[self._call_queue] = self._processes
@@ -144,7 +151,8 @@ class ProcessPoolProvider(object):
         p.join()
 
 
-def _process_worker(call_queue: multiprocessing.Queue) -> None:
+def _process_worker(call_queue: multiprocessing.Queue,
+                    services: Dict[str, Callable]) -> None:
     """Evaluates calls from call_queue and places the results in result_queue.
 
     This worker is run in a separate process.
@@ -176,8 +184,7 @@ def _process_worker(call_queue: multiprocessing.Queue) -> None:
                 retry_times += 1
                 continue
         try:
-            # TODO
-            r = 1
+            r = services[call_item.service](*call_item.args, **call_item.kwargs)
         except BaseException as e:
             exc = _base.ExceptionWithTraceback(e, e.__traceback__)
             try:

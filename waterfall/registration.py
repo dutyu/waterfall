@@ -6,6 +6,7 @@ Author: dutyu
 Date: 2020/04/08 14:37:52
 """
 import os
+import pickle
 import threading
 import traceback
 from types import MappingProxyType
@@ -16,10 +17,14 @@ from kazoo.client import KazooClient
 from kazoo.exceptions import NodeExistsError
 from kazoo.protocol.states import KazooState
 
+from waterfall import _util
 from waterfall import _base
 
 
+@_util.singleton
 class RegistrationCenter(object):
+
+    _SERVICES_ = dict()
 
     def __init__(self,
                  zk_hosts: str,
@@ -36,7 +41,6 @@ class RegistrationCenter(object):
         # provider's process will delete the zk node,
         # so we need to record the process when create the zk node.
         self._create_pid = None
-        self._services = dict()
         self._port = port
 
     def _register_path(self) -> str:
@@ -45,10 +49,13 @@ class RegistrationCenter(object):
              ':'.join((_base.IP, str(self._port))))
         )
 
-    def _register_service(self, service_name: str,
-                          fn: Callable) -> None:
-        # TODO
-        pass
+    @classmethod
+    def register_service(cls, service_name: str,
+                         fn: Callable) -> None:
+        cls._SERVICES_[service_name] = fn
+
+    def get_services(self) -> MappingProxyType:
+        return MappingProxyType(self._SERVICES_)
 
     def _find_provider(self,
                        pending_work_items_lock: threading.Lock,
@@ -67,11 +74,18 @@ class RegistrationCenter(object):
         )
 
         def _set_provider_listener(app_name: str) -> None:
-            @zk.ChildrenWatch('/'.join(('', _base.ZK_PATH, app_name)))
+            app_zk_path = '/'.join(('', _base.ZK_PATH, app_name))
+
+            @zk.ChildrenWatch(app_zk_path)
             def provider_listener(provider_nodes: List[str]) -> None:
                 providers[app_name] = tuple(
                     map(lambda provider_node:
-                        _base.ProviderItem(app_name, *provider_node.split(':')),
+                        _base.ProviderItem(
+                            app_name,
+                            *provider_node.split(':'),
+                            pickle.loads(zk.get('/'.join(
+                                (app_zk_path,
+                                 provider_node)))[0])),
                         provider_nodes)
                 )
                 # Don't need to execute the below code if the listener be triggered first.
@@ -115,17 +129,23 @@ class RegistrationCenter(object):
         self._close_event.wait()
         self._close(zk, False)
 
-    def _register_provider(self, reconnected_event: threading.Event) -> None:
+    def _register_provider(self, reconnected_event: threading.Event,
+                           init_weight: int) -> None:
         # Init zk client and register itself
         connection_retry = {'max_tries': -1, 'max_delay': 1}
         zk = KazooClient(hosts=self._zk_hosts,
                          connection_retry=connection_retry)
         zk.start()
-        # Register worker to the zk cluster.
+
+        services = dict(map(lambda service:
+                            (service, _base.ServiceItem(service, init_weight)),
+                            self._SERVICES_))
+        meta_info = _base.ProviderMetaInfo(init_weight, services)
+
         try:
-            zk.create(self._register_path(), b'',
+            zk.create(self._register_path(),
+                      pickle.dumps(meta_info),
                       ephemeral=True, makepath=True)
-            self._create_pid = os.getpid()
         except NodeExistsError:
             pass
 
@@ -142,10 +162,10 @@ class RegistrationCenter(object):
                 break
             reconnected_event.clear()
             try:
-                zk.create(self._register_path(), b'',
+                zk.create(self._register_path(),
+                          pickle.dumps(meta_info),
                           ephemeral=True, makepath=True)
             except NodeExistsError:
-                # Ignore NodeExistsError.
                 pass
         self._close(zk, True)
 
@@ -153,10 +173,11 @@ class RegistrationCenter(object):
         # Close zk client and release resources.
         zk.state_listeners.clear()
         if is_provider and os.getpid() == self._create_pid:
-            try:
-                zk.delete(self._register_path())
-            except:
-                pass
+            for service in self._SERVICES_:
+                try:
+                    zk.delete('/'.join((self._register_path(), service)))
+                except NodeExistsError:
+                    pass
         try:
             zk.stop()
         except:
@@ -166,14 +187,14 @@ class RegistrationCenter(object):
         except:
             traceback.print_exc()
 
-    def get_services(self) -> MappingProxyType:
-        return MappingProxyType(self._services)
-
     def start_provider_register_thread(self,
-                                       reconnected_event: threading.Event) -> threading.Thread:
+                                       reconnected_event: threading.Event,
+                                       init_weight: 100
+                                       ) -> threading.Thread:
         t = threading.Thread(
             target=self._register_provider,
-            args=(reconnected_event,)
+            args=(reconnected_event,
+                  init_weight)
         )
         t.daemon = True
         t.start()
@@ -182,7 +203,8 @@ class RegistrationCenter(object):
     def start_find_worker_thread(self,
                                  pending_work_items_lock: threading.Lock,
                                  providers: Dict[str, _base.ProviderItem],
-                                 pending_work_items: Dict[str, _base.WorkItem]) -> threading.Thread:
+                                 pending_work_items: Dict[str, _base.WorkItem]
+                                 ) -> threading.Thread:
         t = threading.Thread(
             target=self._find_provider,
             args=(pending_work_items_lock,

@@ -11,7 +11,7 @@ import threading
 import time
 import traceback
 from threading import Condition
-from typing import Any
+from typing import Any, List, Set, Dict
 
 from waterfall import _util
 
@@ -105,8 +105,20 @@ class CallItem(object):
         self.consumer_id = ':'.join((self.ip, str(self.port)))
 
 
+class ServiceItem(object):
+    def __init__(self, service: str, weight: int):
+        self.service = service
+        self.weight = weight
+
+
+class ProviderMetaInfo(object):
+    def __init__(self, weight: int, services: Dict[str, ServiceItem]):
+        self.weight = weight
+        self.services = services
+
+
 class ProviderItem(object):
-    def __init__(self, app_name: str, ip: str, port: int, meta_info: Any = None):
+    def __init__(self, app_name: str, ip: str, port: int, meta_info: ProviderMetaInfo):
         self.app_name = app_name
         self.ip = ip
         self.port = int(port)

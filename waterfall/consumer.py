@@ -62,18 +62,21 @@ class Consumer(object):
         self._broken = False
         self._providers = {}
 
-    def get_providers(self, app_name: str) -> List[_base.ProviderItem]:
-        return self._providers.get(app_name)
+    def get_providers(self, app_name: str, service: str) -> List[_base.ProviderItem]:
+        return tuple(filter(lambda provider:
+                            provider.meta_info.weight > 0 and
+                            (
+                                provider.meta_info.services.get(service) and
+                                provider.meta_info.services[service].weight > 0
+                            ),
+                            self._providers.get(app_name)))
 
-    def _router(self, provider_items: List[_base.ProviderItem],
-                args: List[Any], kwargs: Dict) -> str:
-        pass
-
-    def invoke(self, app_name: str, service: str, args: List[Any] = None, kwargs: Dict = None, *,
+    def invoke(self, app_name: str, service: str, *, args: List[Any] = (), kwargs: Dict = {},
                timeout: int = _base.DEFAULT_TIMEOUT_SEC):
-        return self.submit(app_name, service, args, kwargs, timeout=timeout).result()
+        return self.submit(app_name, service,
+                           args=args, kwargs=kwargs, timeout=timeout).result()
 
-    def submit(self, app_name: str, service: str, args: List[Any] = None, kwargs: Dict = None, *,
+    def submit(self, app_name: str, service: str, *, args: List[Any] = (), kwargs: Dict = {},
                timeout: int = _base.DEFAULT_TIMEOUT_SEC) -> Future:
 
         # When the executor gets lost, the weakref callback will wake up
@@ -135,11 +138,15 @@ class Consumer(object):
 
                 _thread_queues[self._queue_management_thread] = self._result_queue
 
-            providers = self.get_providers(app_name)
+            providers = self.get_providers(app_name, service)
             if not providers:
                 # If executor can not find any provider, just reject the request.
                 f.set_exception(
-                    _base.EmptyProvider('Reject request. Can not find any provider!')
+                    _base.EmptyProvider(
+                        'Reject request. Can not find any provider! '
+                        'app_name: {app_name}, service: {service}'.format(
+                            app_name=app_name,
+                            service=service))
                 )
                 return f
 

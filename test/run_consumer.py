@@ -1,5 +1,6 @@
 import faulthandler
 import platform
+import random
 import signal
 import time
 import traceback
@@ -18,8 +19,9 @@ if __name__ == '__main__':
     for _ in range(0, 2000):
         for __ in range(0, 10000):
             f = executor.submit(
-                'test-app',
-                'test_topic',
+                'test-app2',
+                'test_service',
+                args=(random.randint(0, 100), random.randint(0, 100)),
                 timeout=1
             )
             futures.append(f)
