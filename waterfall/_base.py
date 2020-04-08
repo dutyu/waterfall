@@ -51,8 +51,8 @@ class BrokenProvider(Exception):
     pass
 
 
-class BrokenQueueManager(Exception):
-    """The queue manager process has been broken."""
+class BrokenRemoteQueue(Exception):
+    """The RemoteQueue process has been broken."""
     pass
 
 

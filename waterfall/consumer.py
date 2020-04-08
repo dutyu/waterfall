@@ -80,7 +80,7 @@ class Consumer(object):
             f = Future()
 
             if self._broken:
-                raise BrokenQueueManager('The process of the queue terminated abruptly.')
+                raise BrokenRemoteQueue('The process of the queue terminated abruptly.')
             if self.shutdown_thread:
                 raise RuntimeError('Cannot schedule new futures after shutdown.')
 
@@ -288,8 +288,8 @@ def _queue_management_worker(executor_reference: Consumer,
             with pending_work_items_lock:
                 for work_id, work_item in pending_work_items.items():
                     work_item.future.set_exception(
-                        BrokenQueueManager(
-                            "The process of the queue manager was "
+                        BrokenRemoteQueue(
+                            "The process of the RemoteQueue was "
                             "terminated abruptly while the future was "
                             "running or pending."
                         ))
