@@ -13,7 +13,7 @@ if __name__ == '__main__':
     worker = ProcessPoolProvider(
         'test-app',
         '127.0.0.1:2181',
-        max_workers=10
+        max_workers=1
     )
 
     worker.start()

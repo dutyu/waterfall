@@ -28,6 +28,7 @@ class RegistrationCenter(object):
         self._close_event = close_event
         self._app_name = app_name
         self._zk_hosts = zk_hosts
+        self._create_pid = None
         self._services = dict()
         self._port = port
 
@@ -43,9 +44,8 @@ class RegistrationCenter(object):
         pass
 
     def _find_provider(self,
-                       fresh_providers_lock: threading.Lock,
                        pending_work_items_lock: threading.Lock,
-                       providers: Dict,
+                       providers: Dict[str, ProviderItem],
                        pending_work_items: Dict) -> None:
         # Init zk client
         connection_retry = {'max_tries': -1, 'max_delay': 1}
@@ -62,12 +62,11 @@ class RegistrationCenter(object):
         def _set_provider_listener(app_name: str) -> None:
             @zk.ChildrenWatch('/'.join(('', ZK_PATH, app_name)))
             def provider_listener(provider_nodes: List[str]) -> None:
-                with fresh_providers_lock:
-                    providers[app_name] = (tuple(
-                        map(lambda work_item:
-                            ProviderItem(app_name, *work_item.split(':')),
-                            provider_nodes)
-                    ))
+                providers[app_name] = tuple(
+                    map(lambda provider_node:
+                        ProviderItem(app_name, *provider_node.split(':')),
+                        provider_nodes)
+                )
                 # Don't need to execute the below code if the listener be triggered first.
                 if init_flag_dict[app_name]:
                     init_flag_dict[app_name] = False
@@ -80,7 +79,8 @@ class RegistrationCenter(object):
                     remove_work_items = set(
                         filter(
                             lambda pair: pair[1].provider_id not in map(
-                                lambda provider: provider.id, providers
+                                lambda provider_item: provider_item[1].id,
+                                providers.items()
                             ) and not pair[1].future.done(),
                             pending_work_items.items())
                     )
@@ -117,6 +117,7 @@ class RegistrationCenter(object):
         try:
             zk.create(self._register_path(), b'',
                       ephemeral=True, makepath=True)
+            self._create_pid = os.getpid()
         except NodeExistsError:
             pass
 
@@ -143,7 +144,7 @@ class RegistrationCenter(object):
     def _close(self, zk: KazooClient, is_provider: bool) -> None:
         # Close zk client and release resources.
         zk.state_listeners.clear()
-        if is_provider:
+        if is_provider and os.getpid() == self._create_pid:
             try:
                 zk.delete(self._register_path())
             except:
@@ -171,14 +172,12 @@ class RegistrationCenter(object):
         return t
 
     def start_find_worker_thread(self,
-                                 fresh_providers_lock: threading.Lock,
                                  pending_work_items_lock: threading.Lock,
-                                 providers: Dict,
-                                 pending_work_items: Dict) -> threading.Thread:
+                                 providers: Dict[str, ProviderItem],
+                                 pending_work_items: Dict[str, WorkItem]) -> threading.Thread:
         t = threading.Thread(
             target=self._find_provider,
-            args=(fresh_providers_lock,
-                  pending_work_items_lock,
+            args=(pending_work_items_lock,
                   providers,
                   pending_work_items)
         )

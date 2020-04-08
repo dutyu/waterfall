@@ -43,7 +43,6 @@ class Consumer(object):
     def __init__(self, zk_hosts: str, *,
                  port=CONSUMER_PORT):
         self._pending_work_items_lock = threading.Lock()
-        self._fresh_providers_lock = threading.Lock()
         self._shutdown_lock = threading.Lock()
         self._queue_management_thread = None
         self._find_providers_thread = None
@@ -60,8 +59,7 @@ class Consumer(object):
         self._providers = {}
 
     def get_providers(self, app_name: str) -> List[ProviderItem]:
-        with self._fresh_providers_lock:
-            return self._providers.get(app_name)
+        return self._providers.get(app_name)
 
     def _router(self, provider_items: List[ProviderItem],
                 args: List[Any], kwargs: Dict) -> str:
@@ -100,7 +98,6 @@ class Consumer(object):
                     close_event,
                     find_providers_latch)
                 self._find_providers_thread = self._registration_center.start_find_worker_thread(
-                    self._fresh_providers_lock,
                     self._pending_work_items_lock,
                     self._providers,
                     self._pending_work_items)
