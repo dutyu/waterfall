@@ -67,6 +67,10 @@ class Consumer(object):
                 args: List[Any], kwargs: Dict) -> str:
         pass
 
+    def invoke(self, app_name: str, service: str, args: List[Any] = None, kwargs: Dict = None, *,
+               timeout: int = DEFAULT_TIMEOUT_SEC):
+        return self.submit(app_name, service, args, kwargs, timeout=timeout).result()
+
     def submit(self, app_name: str, service: str, args: List[Any] = None, kwargs: Dict = None, *,
                timeout: int = DEFAULT_TIMEOUT_SEC) -> Future:
 
