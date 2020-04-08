@@ -72,8 +72,8 @@ class ProcessPoolProvider(object):
                                        self._max_q_size)
             remote_queue.start()
             self._call_queue = remote_queue.queue
+            self._call_queue._ignore_epipe = True
             self._call_queue_process = remote_queue.process
-            # self._call_queue._ignore_epipe = True
             # Start all sub processes
             self._adjust_process_count()
             # Use a CountDownLatch to wait for worker's registration
