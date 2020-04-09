@@ -60,6 +60,7 @@ class RegistrationCenter(object):
     def _find_provider(self,
                        pending_work_items_lock: threading.Lock,
                        providers: Dict[str, _base.ProviderItem],
+                       providers_lock: threading.Lock,
                        pending_work_items: Dict) -> None:
         # Init zk client.
         connection_retry = {'max_tries': -1, 'max_delay': 1}
@@ -68,43 +69,47 @@ class RegistrationCenter(object):
         zk.start()
         zk.ensure_path(_base.ZK_PATH)
         child_nodes = zk.get_children(_base.ZK_PATH)
-        init_flag_dict = dict(map(
-            lambda child_node: (child_node, True),
-            child_nodes)
-        )
 
         def _set_provider_listener(app_name: str) -> None:
-            app_zk_path = '/'.join(('', _base.ZK_PATH, app_name))
+            app_zk_path = '/'.join((_base.ZK_PATH, app_name))
+            providers[app_name] = {}
+
+            def _set_provider_data_listener(provider_node):
+                @zk.DataWatch('/'.join((app_zk_path, provider_node)))
+                def data_listener(data, no_use):
+                    if not data:
+                        return
+                    with providers_lock:
+                        providers[app_name][provider_node] = _base.ProviderItem(
+                            app_name,
+                            *provider_node.split(':'),
+                            pickle.loads(data))
 
             @zk.ChildrenWatch(app_zk_path)
             def provider_listener(provider_nodes: List[str]) -> None:
-                providers[app_name] = tuple(
-                    map(lambda provider_node:
-                        _base.ProviderItem(
-                            app_name,
-                            *provider_node.split(':'),
-                            pickle.loads(zk.get('/'.join(
-                                (app_zk_path,
-                                 provider_node)))[0])),
-                        provider_nodes)
-                )
-                # Don't need to execute the below code if the listener be triggered first.
-                if init_flag_dict[app_name]:
-                    init_flag_dict[app_name] = False
+                offline_flag = False
+                for provider_node in (set(providers[app_name].keys()) - set(provider_nodes)):
+                    offline_flag = True
+                    with providers_lock:
+                        del providers[app_name][provider_node]
+
+                # Add a data watcher to the provider node which we haven't listened.
+                for provider_node in (set(provider_nodes) - set(providers[app_name].keys())):
+                    _set_provider_data_listener(provider_node)
+
+                # Don't need to execute the below code if no node be offline.
+                if not offline_flag:
                     return
+
                 # Wait for providers to handle the pending work items.
                 time.sleep(_base.DEFAULT_TIMEOUT_SEC + 1)
                 # Use a filter to find the still remains pending items
                 # and set a OfflineProvider exception.
-                with pending_work_items_lock:
-                    remove_work_items = set(
-                        filter(
-                            lambda pair: pair[1].provider_id not in map(
-                                lambda provider_item: provider_item[1].id,
-                                providers.items()
-                            ) and not pair[1].future.done(),
-                            pending_work_items.items())
-                    )
+                remove_work_items = set(
+                    filter(
+                        lambda pair: pair[1].provider_id not in provider_nodes
+                        and not pair[1].future.done(),
+                        tuple(pending_work_items.items())))
                 while remove_work_items:
                     k, item = remove_work_items.pop()
                     item.future.set_exception(
@@ -203,12 +208,14 @@ class RegistrationCenter(object):
     def start_find_worker_thread(self,
                                  pending_work_items_lock: threading.Lock,
                                  providers: Dict[str, _base.ProviderItem],
+                                 providers_lock: threading.Lock,
                                  pending_work_items: Dict[str, _base.WorkItem]
                                  ) -> threading.Thread:
         t = threading.Thread(
             target=self._find_provider,
             args=(pending_work_items_lock,
                   providers,
+                  providers_lock,
                   pending_work_items)
         )
         t.daemon = True

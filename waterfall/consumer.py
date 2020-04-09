@@ -48,13 +48,14 @@ class Consumer(object):
                  port=_base.CONSUMER_PORT):
         self._pending_work_items_lock = threading.Lock()
         self._shutdown_lock = threading.Lock()
+        self._providers_lock = threading.Lock()
         self._queue_management_thread = None
         self._find_providers_thread = None
         self._timeout_check_thread = None
         self._registration_center = None
         self._result_queue_port = port
-        self._pending_work_items = {}
         self.shutdown_thread = False
+        self._pending_work_items = {}
         self._remote_call_queues = {}
         self._result_queue = None
         self._zk_hosts = zk_hosts
@@ -69,7 +70,7 @@ class Consumer(object):
                                 provider.meta_info.services.get(service) and
                                 provider.meta_info.services[service].weight > 0
                             ),
-                            self._providers.get(app_name)))
+                            tuple(self._providers.get(app_name).values())))
 
     def invoke(self, app_name: str, service: str, *, args: List[Any] = (), kwargs: Dict = {},
                timeout: int = _base.DEFAULT_TIMEOUT_SEC):
@@ -107,6 +108,7 @@ class Consumer(object):
                 self._find_providers_thread = self._registration_center.start_find_worker_thread(
                     self._pending_work_items_lock,
                     self._providers,
+                    self._providers_lock,
                     self._pending_work_items)
                 _zk_threads[self._find_providers_thread] = close_event
                 if not find_providers_latch.await(10):

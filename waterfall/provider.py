@@ -176,7 +176,7 @@ def _process_worker(call_queue: multiprocessing.Queue,
 
         if call_item is None:
             return
-
+        print('receive a msg')
         q_id = call_item.consumer_id
         if not remote_result_queues.get(q_id):
             remote_queue = _queue.RemoteSimpleQueue(
