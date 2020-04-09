@@ -159,13 +159,14 @@ class ProcessPoolProvider(object):
 
 def _process_worker(call_queue: multiprocessing.Queue,
                     services: Dict[str, Callable]) -> None:
-    """Evaluates calls from call_queue and places the results in result_queue.
+    """Evaluates calls from call_queue and sends the results by socket.
 
     This worker is run in a separate process.
 
     Args:
         call_queue: A multiprocessing.Queue of CallItems that will be read and
             evaluated by the worker.
+        services: A dict contains relations to service and service's handler.
     """
 
     remote_result_queues = {}
