@@ -11,7 +11,7 @@ import threading
 import time
 import traceback
 from threading import Condition
-from typing import Any, List, Set, Dict
+from typing import Any, Dict
 
 from waterfall import _util
 
