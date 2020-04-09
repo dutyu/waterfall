@@ -106,11 +106,12 @@ class RegistrationCenter(object):
                 time.sleep(_base.DEFAULT_TIMEOUT_SEC + 1)
                 # Use a filter to find still remains pending items
                 # and set a OfflineProvider exception.
-                remove_work_items = set(
-                    filter(
-                        lambda pair: pair[1].provider_id not in provider_nodes
-                        and not pair[1].future.done(),
-                        tuple(pending_work_items.items())))
+                with pending_work_items_lock:
+                    remove_work_items = set(
+                        filter(
+                            lambda pair: pair[1].provider_id not in provider_nodes
+                            and not pair[1].future.done(),
+                            tuple(pending_work_items.items())))
                 while remove_work_items:
                     k, item = remove_work_items.pop()
                     item.future.set_exception(

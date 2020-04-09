@@ -235,7 +235,8 @@ class Consumer(object):
 def _timeout_check_worker(pending_work_items: Dict,
                           pending_work_items_lock: threading.Lock) -> None:
     while not _shutdown:
-        work_items = set(pending_work_items.items())
+        with pending_work_items_lock:
+            work_items = set(pending_work_items.items())
         while work_items:
             k, item = work_items.pop()
             if item.future.cancelled():
