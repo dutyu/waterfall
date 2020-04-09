@@ -55,10 +55,10 @@ class RemoteSimpleQueue(object):
     def connect(self) -> None:
         # Connect to the remote server
         assert self._state.value == State.INITIAL
-        sock = socket.socket(socket.AF_INET, socket.SOCK_DGRAM)
-        sock.settimeout(1)
-        # Connect to server and send data
-        sock.sendto(b'\n', (self._ip, self._port))
+        with socket.socket(socket.AF_INET, socket.SOCK_DGRAM) as sock:
+            sock.settimeout(1)
+            # Connect to server and send data
+            sock.sendto(b'\n', (self._ip, self._port))
         self._state.value = State.CONNECTED
 
     def put(self, obj: Any) -> None:
@@ -66,9 +66,9 @@ class RemoteSimpleQueue(object):
         data = pickle.dumps(obj)
         if self._state.value == State.CONNECTED:
             # Connect to server and send data
-            sock = socket.socket(socket.AF_INET, socket.SOCK_DGRAM)
-            sock.settimeout(1)
-            sock.sendto(data + b'\n', (self._ip, self._port))
+            with socket.socket(socket.AF_INET, socket.SOCK_DGRAM) as sock:
+                sock.settimeout(1)
+                sock.sendto(data + b'\n', (self._ip, self._port))
         else:
             self.queue.put(data)
 
@@ -87,12 +87,12 @@ class RemoteQueue(RemoteSimpleQueue):
         data = pickle.dumps(obj)
         if self._state.value == State.CONNECTED:
             # Send data to server
-            sock = socket.socket(socket.AF_INET, socket.SOCK_DGRAM)
-            sock.settimeout(1)
-            sock.sendto(data + b'\n', (self._ip, self._port))
-            res = sock.recv(1024)
-            if res.startswith(b'#FULL#'):
-                raise Full()
+            with socket.socket(socket.AF_INET, socket.SOCK_DGRAM) as sock:
+                sock.settimeout(1)
+                sock.sendto(data + b'\n', (self._ip, self._port))
+                res = sock.recv(1024)
+                if res.startswith(b'#FULL#'):
+                    raise Full()
         else:
             self.queue.put_nowait(data)
 
