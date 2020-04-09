@@ -39,7 +39,8 @@ class RegistrationCenter(object):
         self._zk_hosts = zk_hosts
         # When python exit hook func be triggered,
         # provider's process will delete the zk node,
-        # so we need to record the process when create the zk node.
+        # so we need to record the process when create the zk node,
+        # if the process isn't the owner, do nothing.
         self._create_pid = None
         self._port = port
 
@@ -97,13 +98,13 @@ class RegistrationCenter(object):
                 for provider_node in (set(provider_nodes) - set(providers[app_name].keys())):
                     _set_provider_data_listener(provider_node)
 
-                # Don't need to execute the below code if no node be offline.
+                # Don't need to execute the below code if there is no offline node.
                 if not offline_flag:
                     return
 
                 # Wait for providers to handle the pending work items.
                 time.sleep(_base.DEFAULT_TIMEOUT_SEC + 1)
-                # Use a filter to find the still remains pending items
+                # Use a filter to find still remains pending items
                 # and set a OfflineProvider exception.
                 remove_work_items = set(
                     filter(
@@ -131,6 +132,7 @@ class RegistrationCenter(object):
         # We have finished the init stage,
         # so notice the main thread to continue.
         self._init_latch.count_down()
+        # Wait for close event.
         self._close_event.wait()
         self._close(zk, False)
 
