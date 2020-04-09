@@ -41,6 +41,7 @@ def _python_exit():
             e.set()
         t.join()
 
+
 _DEFAULT_MAX_QUEUE_SIZE = 1000
 
 
@@ -64,7 +65,7 @@ class ProcessPoolProvider(object):
         self._state = 0
         self._zk = None
 
-    def start(self, init_weight: int=100) -> None:
+    def start(self, init_weight: int = 100) -> None:
         init_weight = 100 if init_weight > 100 else init_weight
         with self._start_lock:
             if self._state != 0:
@@ -106,16 +107,21 @@ class ProcessPoolProvider(object):
             sentinels = [p.sentinel for p in self._processes.values()] + \
                         [self._call_queue_process.sentinel, ]
             assert sentinels
-            print('#'*50)
-            print('#'*11 + '   WATERFALL HAS STARTED!   ' + '#'*11)
-            print('#'*11 + '        VERSION 0.2.0       ' + '#'*11)
-            print('#'*11 + '        AUTHOR: dutyu       ' + '#'*11)
-            print('#'*11 + ' MAIL:dut.xiangyu@gmail.com ' + '#'*11)
-            print('#'*11 + '       APP: {app_name}       '.format(
-                app_name=self._app_name) + '#'*11)
-            print('#'*50)
+            self._hello_world()
             wait(sentinels)
             self._shutdown_worker()
+
+    def _hello_world(self):
+        print('#' * 50)
+        print('#' * 11 + '   WATERFALL HAS STARTED!   ' + '#' * 11)
+        print('#' * 11 + '        VERSION 0.2.0       ' + '#' * 11)
+        print('#' * 11 + '        AUTHOR: dutyu       ' + '#' * 11)
+        print('#' * 11 + ' MAIL:dut.xiangyu@gmail.com ' + '#' * 11)
+        space_cnt = 23 - len(self._app_name)
+        left_space_cnt = int(space_cnt / 2)
+        print('#' * 11 + ' ' * left_space_cnt + 'APP: {app_name}'.format(
+            app_name=self._app_name) + ' ' * (space_cnt - left_space_cnt) + '#' * 11)
+        print('#' * 50)
 
     def _adjust_process_count(self) -> None:
         for i in range(len(self._processes), self._max_workers):
@@ -202,5 +208,6 @@ def _process_worker(call_queue: multiprocessing.Queue,
             except:
                 traceback.print_exc()
                 retry_times += 1
+
 
 atexit.register(_python_exit)
