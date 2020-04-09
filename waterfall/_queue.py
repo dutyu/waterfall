@@ -45,7 +45,8 @@ class RemoteSimpleQueue(object):
             args=(self._ip, self._port, self.queue)
         )
         self.process.start()
-        time.sleep(1)
+        # Wait for socket server's process initialing.
+        time.sleep(5)
         self._state.value = State.STARTED
 
     def start(self) -> None:
